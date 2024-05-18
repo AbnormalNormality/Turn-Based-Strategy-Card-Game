@@ -1114,6 +1114,12 @@ definitions = {
             Values becoming 9999999999999999999999999999999
             Ending a game starts 3 more games
             Incorrect values
+        """,
+
+        "Public Release 1.4": """
+        Known bugs not patched:
+            All 1.3 issues
+            Bleed is OP :(
         """
     },
 }
