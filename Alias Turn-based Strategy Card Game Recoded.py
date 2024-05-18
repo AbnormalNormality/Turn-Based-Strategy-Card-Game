@@ -246,9 +246,11 @@ def fix_dictionary():
             dictionary["cards"][card_name]["display name"] = card_name
 
         for i in ["block", "heal"]:
-            if i in card and not (type(card[i]) is dict and "target" in card[i]):
+            if i in card and callable(card[i]):
+                dictionary["cards"][card_name][i] = {"amount": card[i], "target": "self"}
+            elif i in card and not (type(card[i]) is dict and "target" in card[i]):
                 if type(card[i]) is int:
-                    dictionary["cards"][card_name][i] = {"amount": card[i],"target": "self"}
+                    dictionary["cards"][card_name][i] = {"amount": card[i], "target": "self"}
 
     for class_name in dictionary["classes"]:
         class_ = dictionary["classes"][class_name]
