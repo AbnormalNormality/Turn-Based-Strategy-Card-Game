@@ -1,5 +1,3 @@
-# Reminder: add a SKILL ACTION button that can be clicked for effects with certain skills
-
 from tkinter import Tk, Frame, Label, StringVar, colorchooser, BooleanVar, messagebox
 from tkinter.ttk import Button, Entry, OptionMenu, Style, Checkbutton
 from AliasTkFunctions.tkfunctions import fix_resolution_issue, CreateToolTip
@@ -9,6 +7,7 @@ from random import choice, shuffle, randint
 from sys import exit
 from os import system, path, listdir, makedirs
 from copy import deepcopy
+from math import floor, ceil
 
 system("cls")
 sounds = False
@@ -29,7 +28,7 @@ dictionary = {
 
         "Ritual": {"description": "Lose 5 HP\nAdd one demon card to your hand.",
                    "evoke": {"card": lambda: choice(["Fortis", "Lentus", "Callidus"]), "target": "self", "amount": 1,
-                             "pile": "hand"}, "heal": {"target": "self", "amount": -5}, "type": "magic"},
+                             "pile": "hand"}, "heal": {"target": "self", "amount": -5}, "type": "magic", "cost": 0},
         "Fortis": {
             "description": "Gain 2 Strength until the start of your next turn.\nDeal *d damage\nRemove this card from your deck.",
             "effects": {"Strength": {"amount": 2, "target": "self", "duration": "temporary"}}, "damage": 4, "cost": 2,
@@ -48,14 +47,23 @@ dictionary = {
                                                                      "duration": "normal"}},
             "heal": {"target": "self", "amount": -1}, "details": ["remove"]},
 
-        "SPECIAL DAMAGE": {"description": "Deal 3 damage for each unspent energy\n9 > 6 > 3", "display name": "Spirit of Vengeance", "details": ["disintegrate", "do not discard"], "damage": lambda: 3 * c_energy, "type": "special"},
-        "SPECIAL BLOCK": {"description": "Gain 5 block for each unspent energy\n15 > 10 > 5", "display name": "Spirit of Sanctuary", "details": ["disintegrate", "do not discard"], "block": lambda: 5 * c_energy, "type": "special"},
-        "SPECIAL EFFECT": {"description": "Gain 2 Thorns for each unspent energy\n6 > 4 > 2", "display name": "Spirit of Reprisal", "details": ["disintegrate", "do not discard"], "effects": {"Thorns": {"amount": lambda: 2 * c_energy, "target": "self", "duration": "normal"}}, "type": "special"},
-        "SPECIAL KING": {"description": "Heal 1 for each unspent energy\n3 > 2 > 1", "display name": "Spirit of Renewal", "details": ["disintegrate", "do not discard"], "heal": lambda: 1 * c_energy, "type": "special"},
-        "basic damage": {"description": "Apply 1 Vulnerable\nDeal 3 damage", "display name": "Acolyte", "effects": {"Vulnerable": {"amount": 1, "target": "opponent", "duration": "normal"}}, "damage": 3},
-        "basic block": {"description": "Apply 1 Weak\nGain 3 block", "display name": "Disciple", "effects": {"Weak": {"amount": 1, "target": "opponent", "duration": "normal"}}, "block": 3, "type": "magic"},
-        "basic effect": {"description": "Gain 1 Strength and Resistance until the end of the turn.", "display name": "Devotee", "effects": {"Strength": {"amount": 1, "target": "self", "duration": "temporary"}, "Resistance": {"amount": 1, "target": "self", "duration": "temporary"}}, "type": "magic"},
+        "SPECIAL DAMAGE": {"description": "Deal 3 damage for each unspent energy\n9 > 6 > 3", "display name": "Spirit of Vengeance", "details": ["disintegrate", "do not discard"], "damage": {"amount": 3, "times": lambda: c_energy}, "type": "special"},
+        "SPECIAL BLOCK": {"description": "Gain 5 block for each unspent energy\n15 > 10 > 5", "display name": "Spirit of Sanctuary", "details": ["disintegrate", "do not discard"], "block": lambda: 5 * c_energy, "type": "special", "target": "self"},
+        "SPECIAL EFFECT": {"description": "Gain 2 Thorns for each unspent energy\n6 > 4 > 2", "display name": "Spirit of Reprisal", "details": ["disintegrate", "do not discard"], "effects": {"Thorns": {"amount": lambda: 2 * c_energy, "target": "self", "duration": "normal"}}, "type": "special", "target": "self"},
+        "SPECIAL KING": {"description": "Heal 1 for each unspent energy\n3 > 2 > 1", "display name": "Spirit of Renewal", "details": ["disintegrate", "do not discard"], "heal": lambda: 1 * c_energy, "type": "special", "target": "self"},
+        "basic damage": {"description": "Apply 1 Vulnerable\nDeal *d damage", "display name": "Acolyte", "effects": {"Vulnerable": {"amount": 1, "target": "opponent", "duration": "normal"}}, "damage": 3},
+        "basic block": {"description": "Apply 1 Weak\nGain *b block", "display name": "Disciple", "effects": {"Weak": {"amount": 1, "target": "opponent", "duration": "normal"}}, "block": 3, "type": "magic"},
+        "basic effect": {"description": "Gain 1 Strength and Resistance until the end of the turn.", "display name": "Devotee", "effects": {"Strength": {"amount": 1, "target": "self", "duration": "temporary"}, "Resistance": {"amount": 1, "target": "self", "duration": "temporary"}}, "type": "magic", "target": "self"},
 
+        "Block": {"description": "Gain 5 block", "block": 5, "target": "self"},
+        "Weak Magic": {"description": "Deal 2 damage\nApply 1 Weak", "effects": {"Weak": 1}, "damage": 2, "type": "magic"},
+
+        "burn damage": {"description": "Deal *d damage.\nIf the target has Burn, deal double damage.", "damage": 2, "details_dict": {"increase damage if effect": {"effect": "Burn", "amount": 2}}},
+        "burn block": {"description": "Gain *b block\nApply 1 Weak to all enemies with Burn.", "block": 4, "details_dict": {"inflict to all with": {"inflicted status": "Weak", "checked status": "Burn", "target": "all", "duration": "normal", "amount": 1}}},
+        "burn special": {"description": "Deal damage to target equal to their Burn value.", "damage": lambda: get_effect_value(target, "Burn")},
+        "poison damage": {"description": "Deal *d damage.\nIf the target has Poison, deal triple damage.", "damage": 2, "details_dict": {"increase damage if effect": {"effect": "Poison", "amount": 3}}},
+        "poison block": {"description": "Gain *b block\nApply 1 Frail to all enemies with Poison.", "block": 4, "details_dict": {"inflict to all with": {"inflicted status": "Frail", "checked status": "Poison", "target": "all", "duration": "normal", "amount": 1}}},
+        "poison special": {"description": "Deal damage to target equal to their Poison value", "damage": lambda: get_effect_value(target, "Poison")},
     },
     "effects": {
         "effect": {"description": "effect description", "type": "positive"},
@@ -72,11 +80,15 @@ dictionary = {
         "Thorns": {"description": "Opponents take X damage when dealing unblocked damage",
                    "type": "positive"},
         "Armoured": {"type": "positive", "description": "Don't lose shield at the end of your turn."},
-        "Regeneration": {"type": "positive", "description": "Heal X at the end of your turn."}
+        "Regeneration": {"type": "positive", "description": "Heal X at the end of your turn."},
+        "Reflect": {"type": "positive", "description": "Reflect X0% damage back at attackers after effects, skills, and block."},
+        "Conservation": {"type": "positive", "description": "Gain X energy at the start of your turn."},
+        "Fear": {"description": "Reduces damage you deal by 50%", "type": "negative"},
+        "Preperation": {"type": "positive", "description": "Draw X cards at the start of your turn."},
     },
     "classes": {
-        "class": {"health": 50, "energy": 3, "skills": ["skill"], "effects": {},
-                  "description": "Start with 60 health and skill.",
+        "class": {"health": 50, "energy": 3, "skills": ["skill"],
+                  "description": "Start with 60 health and skill.", "upgrades": {0: "test upgrade 0", 1: "test upgrade 0", 2: "test upgrade 0", 3: "test upgrade 0"},
                   "deck": [
                       "card",
                       "card",
@@ -92,10 +104,14 @@ dictionary = {
                           "Slash",
                           "Slash",
                           "Slash",
+                          "Block",
+                          "Block",
+                          "Block",
+                          "Weak Magic",
                       ]},
         "Cultist": {"description": "A class that relies on the support of demons to fight their enemy.",
                     "deck": [
-                        "Ritual"
+                        "Ritual",
                     ], "health": 50, "energy": 3},
         "Spirit Watcher": {"description": "PLACEHOLDER", "skills": ["Spirit Call"],
                            "deck": [
@@ -108,11 +124,20 @@ dictionary = {
                                "basic effect",
                                "basic effect",
                            ], "health": 60, "energy": 3},
+        "Pyromaniac": {"description": "PLACEHOLDER", "skills": ["Arsonist"], "health": 55,
+                       "upgrades": {0: "Default class, no changes.",
+                                    1: "Burn pierces through shield.",
+                                    2: "Burn applied by your skill is affected by Strength.\nGain 1 Strength at the start of yout "
+                                       "turn for each enemy with Burn.",
+                                    3: "Apply 2 TEMPORARY Poison every time you play a card insead of Burn.\nChange "
+                                       "your starting deck to a Poison deck."},
+                       "deck": ["burn damage", "burn damage", "burn damage", "burn damage", "burn block", "burn block", "burn block", "burn special"]}
     },
     "skills": {
         "skill": "skill description",
-        "Beginner's luck": "Recieve 20% less damage from incoming attacks",
+        "Beginner's luck": "Recieve 10% less damage from incoming attacks",
         "Spirit Call": "After you play 10 cards you can change your hand to special cards.",
+        "Arsonist": "Apply 1 Burn to all enemies every time you play a card.",
     },
     "patch notes": {
         "Alpha 0": """
@@ -200,11 +225,27 @@ dictionary = {
         "Alpha 0.3": """
         Fixed a bug relating to effects
         Changed the order effects are applied
+        Changed how damage is dealt
+        Changed the order effects are decreased (positive > start of turn, negative > end of turn)
+        Added various keybinds for buttons
+        Added class upgrades
         
-        Added class:
+        Added classes:
             Spirit Watcher
+            Pyromaniac
+        Changed classes:
+            Fledgling
         Added skills:
             Spirit Call
+            Arsonist
+        Changed skills:
+            Beginner's Luck
+        Added effects:
+            Regeneration
+            Reflect
+            Conservation
+            Fear
+            Preperation
         Added cards:
             Acolyte
             Desciple
@@ -213,6 +254,11 @@ dictionary = {
             Spirit of Veangence
             Spirit of Reprisal
             Spirit of Sanctuary
+            Block
+            Weak Magic
+        Changed cards:
+            Spirit of Veangence
+            Weak Magic
         """,
     }
 }
@@ -244,13 +290,36 @@ def fix_dictionary():
             dictionary["cards"][card_name]["target"] = "1 opponent"
         if "display name" not in card:
             dictionary["cards"][card_name]["display name"] = card_name
+        if "details_dict" not in card:
+            dictionary["cards"][card_name]["details_dict"] = {}
 
-        for i in ["block", "heal"]:
+        for i in ["block", "heal", "draw"]:
             if i in card and callable(card[i]):
                 dictionary["cards"][card_name][i] = {"amount": card[i], "target": "self"}
             elif i in card and not (type(card[i]) is dict and "target" in card[i]):
                 if type(card[i]) is int:
-                    dictionary["cards"][card_name][i] = {"amount": card[i], "target": "self"}
+                    if i != "draw":
+                        dictionary["cards"][card_name][i] = {
+                            "amount": card[i],
+                            "target": "self"
+                        }
+                    else:
+                        dictionary["cards"][card_name][i] = {
+                            "amount": card[i],
+                            "loop": False
+                        }
+        if "damage" in card:
+            if type(card["damage"]) is not dict:
+                dictionary["cards"][card_name]["damage"] = {"amount": card["damage"]}
+            if "target" not in card["damage"]:
+                dictionary["cards"][card_name]["damage"].update({"target": "opponent"})
+            if "times" not in card["damage"]:
+                dictionary["cards"][card_name]["damage"].update({"times": 1})
+
+        if "effects" in card:
+            for effect in card["effects"]:
+                if type(card["effects"][effect]) is not dict:
+                    card["effects"][effect] = {"amount": card["effects"][effect], "duration": "normal", "target": "self" if dictionary["effects"][effect]["type"] == "positive" else "opponent"}
 
     for class_name in dictionary["classes"]:
         class_ = dictionary["classes"][class_name]
@@ -266,6 +335,11 @@ def fix_dictionary():
             dictionary["classes"][class_name]["deck"] = []
         if "effects" not in class_:
             dictionary["classes"][class_name]["effects"] = {}
+        if "upgrades" not in class_:
+            dictionary["classes"][class_name]["upgrades"] = {0: "",
+                                                             1: "",
+                                                             2: "",
+                                                             3: ""}
 
 
 fix_dictionary()
@@ -359,7 +433,7 @@ def setup(stage=0, players_local=None, completed=[]):
 
         label = Label(frame, text="Do you want to enable dev features?", font=("calibri", 10))
         label.pack(side="left")
-        CreateToolTip(label, "Access to debug cards, faster AI load times...", y_change=20, x_change=0,
+        CreateToolTip(label, "Access to debug cards, faster CPU load times...", y_change=20, x_change=0,
                       background="#ffffff", font=("calibri", 9))
         dev_features = BooleanVar()
         dev_features.set(True)
@@ -373,8 +447,11 @@ def setup(stage=0, players_local=None, completed=[]):
             for item in listdir(directory):
                 item_path = path.join(directory, item)
                 if path.isfile(item_path):
-                    s.append(
-                        f" • {".".join(item.split(".")[:-1])}: Adds {", ".join(list(eval(open(item_path, "r").read())))}")
+                    try:
+                        s.append(
+                            f" • {".".join(item.split(".")[:-1])}: Adds {", ".join(list(eval(open(item_path, "r").read())))}")
+                    except:
+                        s.append("Error")
                 elif path.isdir(item_path):
                     process_files_in_directory(item_path)
 
@@ -442,7 +519,7 @@ def setup(stage=0, players_local=None, completed=[]):
             frame.pack(side="top", pady=5)
             Label(frame, text=f"Is player {x} a CPU?", font=("calibri", 10)).pack(side="left")
             globals()[f"player_{x}_ai"] = BooleanVar()
-            globals()[f"player_{x}_ai"].set(False)
+            globals()[f"player_{x}_ai"].set(False if x == 1 else globals()[f"player_{x - 1}_ai"].get())
             Checkbutton(frame, variable=globals()[f"player_{x}_ai"]).pack(side="left")
 
             def validify(chars):
@@ -483,6 +560,12 @@ def setup(stage=0, players_local=None, completed=[]):
                     e.append(dictionary["cards"][card]["display name"])
                 tooltip = tooltip + f"\nDeck:\n • {"\n • ".join(sorted(e))}"
                 CreateToolTip(option_menu, tooltip, y_change=33, x_change=1, background="#ffffff", font=("calibri", 9))
+                update_class_upgrades()
+
+            def update_class_upgrades(*args):
+                class_ = globals()[f"player_{x}_class"].get()
+                upgrade = globals()[f"player_{x}_class_upgrade"].get()
+                CreateToolTip(option_menu2, get_class_data(class_, "upgrades")[int(upgrade)] if get_class_data(class_, "upgrades")[int(upgrade)] else "Not developed", y_change=33, x_change=1, background="#ffffff", font=("calibri", 9))
 
             frame = Frame(center_frame)
             frame.pack(side="top", pady=5)
@@ -492,6 +575,12 @@ def setup(stage=0, players_local=None, completed=[]):
                                      *sorted(list(dictionary["classes"])))
             option_menu.pack(side="left")
             globals()[f"player_{x}_class"].trace("w", update_class)
+
+            globals()[f"player_{x}_class_upgrade"] = StringVar()
+            option_menu2 = OptionMenu(frame, globals()[f"player_{x}_class_upgrade"], choice(['0', '1', '2', '3']),
+                                      *['0', '1', '2', '3'])
+            option_menu2.pack(side="left")
+            globals()[f"player_{x}_class_upgrade"].trace("w", update_class_upgrades)
             update_class()
             break
 
@@ -520,10 +609,14 @@ def start_game():
             "deck": get_class_data(class_name, "deck").copy(),
             "hand": [], "discard": [], "exile": [], "special": {},
             "ai": choice(["random"]) if globals()[f"player_{x}_ai"].get() else False,
-            "colour": globals()[f"player_{x}_colour"].cget("text"), "block": 0, "played cards": [], "played cards this turn": [],
+            "colour": globals()[f"player_{x}_colour"].cget("text"), "block": 0, "played cards": [],
+            "played cards this turn": [], "class upgrade": int(globals()[f"player_{x}_class_upgrade"].get())
         }})
         if "Spirit Call" in player_data[x]["skills"]:
             player_data[x]["special"].update({"spirit counter": 0 if not dev_features.get() else 10})
+        if player_data[x]["class"] == "Pyromaniac" and player_data[x]["class upgrade"] == 3:
+            for i in range(len(player_data[x]["deck"]) + 1):
+                player_data[x]["deck"][i - 1] = player_data[x]["deck"][i - 1].replace("burn", "poison")
         shuffle(player_data[x]["deck"])
     turn = {
         "turn": 0, "all": list(player_data)}
@@ -536,7 +629,8 @@ def start_game():
 
     end_button = Button(main, text="End Turn", command=end_turn, style="end_button.TButton")
     end_button.place(x=main.winfo_width() - 150, y=main.winfo_height() - 110)
-    main.bind("<KeyRelease-e>", lambda event: end_turn(event=event))
+    main.bind("<KeyRelease-Return>", lambda event: end_turn(event=event))
+    main.bind("<KeyRelease-Return>", lambda event: end_turn(event=event))
     (Button(main, text="Restart Game", command=restart_program, style="end_button.TButton")
      .place(x=main.winfo_width() - 150, y=main.winfo_height() - 55))
 
@@ -567,8 +661,9 @@ def start_game():
     def onKeyPress2(event):
         [print(f"{p}: {dictionary["cards"][p]}") for p in dictionary["cards"]]
 
-    main.bind("<Control-d>", onKeyPress1)
-    main.bind("<Control-c>", onKeyPress2)
+    if dev_features.get():
+        main.bind("<Control-d>", onKeyPress1)
+        main.bind("<Control-c>", onKeyPress2)
     start_turn()
 
 
@@ -604,18 +699,28 @@ def progress_turn():
 
 def start_turn():
     progress_turn()
+    update_info()
     turn_label.configure(text=f"Turn {turn["turn"]}")
     player_data[get_turn()]["energy"] = player_data[get_turn()]["turn energy"]
     if "Exhaust" in player_data[get_turn()]["effects"]:
         player_data[get_turn()]["energy"] = round(player_data[get_turn()]["energy"] * 2 / 3)
+    if "Conservation" in player_data[get_turn()]["effects"]:
+        player_data[get_turn()]["energy"] += get_effect_value(get_turn(), "Conservation")
     if "Armoured" not in player_data[get_turn()]["effects"]:
         player_data[get_turn()]["block"] = 0
 
     player_data[get_turn()]["health"] -= get_effect_value(get_turn(), "Poison") if "Poison" in player_data[get_turn()][
         "effects"] else 0
 
+    draw_hand()
+    if "Preparation" in player_data[get_turn()]["effects"]:
+        draw_hand(get_effect_value(get_turn(), "Preparation"))
+
     for effect in get_player_data(get_turn(), "effects").copy():
         # "effects": {"normal": 0, "permanent": 0, "temporary": 0}
+        if dictionary["effects"][effect]["type"] == "negative":
+            continue
+
         if "normal" in player_data[get_turn()]["effects"][effect]:
             player_data[get_turn()]["effects"][effect]["normal"] -= 1
             if player_data[get_turn()]["effects"][effect]["normal"] <= 0:
@@ -627,7 +732,20 @@ def start_turn():
         if not player_data[get_turn()]["effects"][effect]:
             del player_data[get_turn()]["effects"][effect]
 
-    draw_hand()
+    if get_player_data(get_turn(), "class") == "Pyromaniac" and get_player_data(get_turn(), "class upgrade") == 2:
+        c = 0
+        for t in get_turn("other"):
+            if "Burn" in get_player_data(t, "effects"):
+                c += 1
+
+        if c > 0:
+            if "Strength" not in get_player_data(get_turn(), "effects"):
+                player_data[get_turn()]["effects"].update({"Strength": {}})
+
+            if "temporary" not in player_data[get_turn()]["effects"]["Strength"]:
+                player_data[get_turn()]["effects"]["Strength"].update({"temporary": 0})
+
+            player_data[get_turn()]["effects"]["Strength"]["temporary"] += c + 1
 
     if mods.get():
         def process_files_in_directory(directory):
@@ -657,12 +775,35 @@ def end_turn(event=None):
 
     if "Burn" in player_data[get_turn()]["effects"]:
         damage = get_effect_value(get_turn(), "Burn")
-        stored = damage
-        damage -= player_data[get_turn()]["block"]
-        player_data[get_turn()]["block"] -= stored
-        if player_data[get_turn()]["block"] < 0:
-            player_data[get_turn()]["block"] = 0
+        pass_shield = False
+        for eieio in get_turn("other"):
+            if get_player_data(eieio, "class") == "Pyromaniac" and get_player_data(eieio, "class upgrade") == 1:
+                pass_shield = True
+                break
+        if not pass_shield:
+            stored = damage
+            damage -= player_data[get_turn()]["block"]
+            player_data[get_turn()]["block"] -= stored
+            if player_data[get_turn()]["block"] < 0:
+                player_data[get_turn()]["block"] = 0
         player_data[get_turn()]["health"] -= damage
+        print(damage)
+
+    for effect in get_player_data(get_turn(), "effects").copy():
+        # "effects": {"normal": 0, "permanent": 0, "temporary": 0}
+        if dictionary["effects"][effect]["type"] == "positive":
+            continue
+
+        if "normal" in player_data[get_turn()]["effects"][effect]:
+            player_data[get_turn()]["effects"][effect]["normal"] -= 1
+            if player_data[get_turn()]["effects"][effect]["normal"] <= 0:
+                del player_data[get_turn()]["effects"][effect]["normal"]
+
+        if "temporary" in player_data[get_turn()]["effects"][effect]:
+            del player_data[get_turn()]["effects"][effect]["temporary"]
+
+        if not player_data[get_turn()]["effects"][effect]:
+            del player_data[get_turn()]["effects"][effect]
 
     for effect in list(get_player_data(get_turn(), "effects")):
         break  # old code
@@ -734,7 +875,8 @@ def update_info():
                         get_player_data(get_turn(), "ai") else "enabled")
         button.pack(side="left", padx=5)
         if counter < len(key_order):
-            main.bind(f"<KeyRelease-{key_order[counter - 1]}>", lambda event, c=card: choose_target(c, event=event))
+            main.bind(f"<KeyRelease-{key_order[0]}>", lambda event, c=card: choose_target(c, event=event))
+            del key_order[0]
 
         t = get_card_data(card, "description")
         for a in ["damage", "block"]:
@@ -756,7 +898,7 @@ def update_info():
     class_ = get_player_data(get_turn(), "class")
     tooltip = f"{get_class_data(class_, "description")}"
     for skill in get_class_data(class_, "skills"):
-        tooltip = tooltip + f"\n{skill}: {dictionary["skills"][skill]}"
+        tooltip = tooltip + f"\n{skill}: {dictionary["skills"][skill]}{f"\nUpgrade {get_player_data(get_turn(), "class upgrade")}: {get_class_data(class_, "upgrades")[get_player_data(get_turn(), "class upgrade")]}" if get_player_data(get_turn(), "class upgrade") and get_class_data(class_, "upgrades")[get_player_data(get_turn(), "class upgrade")] else ""}"
     tooltip = tooltip + f"\nDeck:\n • {"\n • ".join(sorted(get_class_data(class_, "deck")))}"
     CreateToolTip(label, tooltip, y_change=35, background="#ffffff", font=("calibri", 9))
 
@@ -794,7 +936,7 @@ def update_info():
                           "#de4765", font=("calibri", 10))
             label.pack(side="left", padx=3)
             CreateToolTip(label,
-                          f"{dictionary["effects"][effect]["description"]}\n{"\n".join([f"{get_player_data(get_turn(), "effects")[effect][e]} {e}" for e in get_player_data(get_turn(), "effects")[effect]])}"
+                          f"{dictionary["effects"][effect]["description"]}\n{"\n".join([f"{get_player_data(get_turn(), "effects")[effect][e]} {e} {effect.capitalize()}" for e in get_player_data(get_turn(), "effects")[effect]])}"
                           .replace("X", f"{get_effect_value(get_turn(), effect)}"),
                           background="#ffffff", font=("calibri", 9), x_change=0, y_change=25)
 
@@ -802,7 +944,7 @@ def update_info():
     frame.pack(side="top")
 
     if "Spirit Call" in player_data[get_turn()]["skills"] and player_data[get_turn()]["special"]["spirit counter"] == 10:
-        Button(frame, text="Spirit Call", style="skill.TButton",
+        Button(frame, text="Spirit Call", style="skill.TButton", state="disabled" if get_player_data(get_turn(), "ai") else "normal",
                command=lambda: exec("""discard_hand()
 player_data[get_turn()]["hand"] += ["SPECIAL DAMAGE", "SPECIAL BLOCK", "SPECIAL EFFECT", "SPECIAL KING"]
 player_data[get_turn()]["special"]["spirit counter"] = 0
@@ -834,7 +976,7 @@ update_info()""")).pack(side="left")
         tooltip = f"{get_class_data(class_, "description")}"
         for skill in get_class_data(class_, "skills"):
             tooltip = tooltip + f"\n{skill}: {dictionary["skills"][skill]}"
-        tooltip = tooltip + f"\nDeck:\n • {"\n • ".join(sorted(get_class_data(class_, "deck")))}"
+        tooltip = tooltip + f"\nDeck:\n • {"\n • ".join(sorted(get_class_data(class_, "deck")))}{f"\nUpgrade {get_player_data(enemy, "class upgrade")}: {get_class_data(class_, "upgrades")[get_player_data(enemy, "class upgrade")]}" if get_player_data(enemy, "class upgrade") and get_class_data(class_, "upgrades")[get_player_data(get_turn(), "class upgrade")] else ""}"
         CreateToolTip(label, tooltip, y_change=35, background="#ffffff", font=("calibri", 9))
 
         counter2 = 0
@@ -868,17 +1010,21 @@ update_info()""")).pack(side="left")
                               foreground="#4b7dc9" if dictionary["effects"][effect]["type"] == "positive" else
                               "#de4765", font=("calibri", 8))
                 label.pack(side="left", padx=3)
-                CreateToolTip(label, dictionary["effects"][effect]["description"]
+                CreateToolTip(label, f"{dictionary["effects"][effect]["description"]}\n{"\n".join([f"{get_player_data(enemy, "effects")[effect][e]} {e} {effect.capitalize()}" for e in get_player_data(enemy, "effects")[effect]])}"
                               .replace("X", f"{get_effect_value(enemy, effect)}"),
                               background="#ffffff", font=("calibri", 9), x_change=0, y_change=22)
 
+    for i in ["all", "other"]:
+        for p in turn[i]:
+            if get_player_data(p, "health") <= 0:
+                turn[i].remove(p)
     alive_count = 0
     alive_player = None
     for target in get_turn("all"):
         if get_player_data(target, "health") > 0:
             alive_count += 1
             alive_player = get_player_data(target, "name")
-    if alive_count in [0, 1]:
+    if alive_count < 2:
         if messagebox.askyesno(title=f"{alive_player if alive_player else get_turn()} wins!",
                                message=f"{alive_player if alive_player else get_turn()} wins!\nPlay again?"):
             restart_program()
@@ -888,7 +1034,7 @@ update_info()""")).pack(side="left")
 
 # noinspection PyUnusedLocal
 def play_card(card_name, targets):
-    global c_energy
+    global c_energy, target
     [w.destroy() for w in target_frame.winfo_children()]
     if get_card_data(card_name, "cost") > get_player_data(get_turn(), "energy"):
         return
@@ -942,54 +1088,92 @@ def play_card(card_name, targets):
 
                 player_data[target_]["effects"][status][duration] += amount
 
+        if "inflict to all with" in card["details_dict"]:
+            # "details_dict": {"inflict to all with": {"inflicted status": "Weak", "checked status": "Burn",
+            # "target": "all", "duration": "normal", "amount": 1}}
+            target__ = card["details_dict"]["inflict to all with"]["target"]
+            targets_ = [get_turn()] if target__ == "self" else target if target__ == "opponent" else get_turn("other")
+            for target_ in targets_:
+                effect_1 = card["details_dict"]["inflict to all with"]["inflicted status"]
+                effect_2 = card["details_dict"]["inflict to all with"]["checked status"]
+                duration = card["details_dict"]["inflict to all with"]["duration"]
+                amount = card["details_dict"]["inflict to all with"]["amount"]
+                if effect_2 in get_player_data(target_, "effects"):
+                    if effect_1 not in get_player_data(target_, "effects"):
+                        player_data[target_]["effects"].update({effect_1: {}})
+
+                    if duration not in player_data[target_]["effects"][effect_1]:
+                        player_data[target_]["effects"][effect_1].update({duration: 0})
+
+                    player_data[target_]["effects"][effect_1][duration] += amount
+
         if "damage" in card:
-            damage = card["damage"]() if callable(card["damage"]) else card["damage"]
+            # {"amount": 1, "times": 1, "target": "opponent"}
+            damage = card["damage"]["amount"]() if callable(card["damage"]["amount"]) else card["damage"]["amount"]
+            target_ = get_turn() if card["damage"]["target"] == "self" else target
 
             damage *= 2 / 3 if "Weak" in player_data[get_turn()]["effects"] else 1
-            damage *= 0.8 if "Beginner's luck" in player_data[target]["skills"] else 1
-            damage *= 4 / 3 if "Vulnerable" in player_data[target]["effects"] else 1
+            damage *= 0.9 if "Beginner's luck" in player_data[target_]["skills"] else 1
+            damage *= 4 / 3 if "Vulnerable" in player_data[target_]["effects"] else 1
+            if "increase damage if effect" in card["details_dict"] and card["details_dict"]["increase damage if effect"]["effect"] in get_player_data(target_, "effects"):
+                damage *= card["details_dict"]["increase damage if effect"]["amount"]
 
             damage += get_effect_value(get_turn(), "Strength") if "Strength" in player_data[get_turn()][
                 "effects"] else 0
 
-            if mods.get():
-                def process_files_in_directory(directory):
-                    for item in listdir(directory):
-                        item_path = path.join(directory, item)
-                        if path.isfile(item_path):
-                            exec(open(item_path, "r").read())
-                        elif path.isdir(item_path):
-                            process_files_in_directory(item_path)
+            loop_x = card["damage"]["times"]() if callable(card["damage"]["times"]) else card["damage"]["times"]
+            attack_loop = 0
+            for x in range(1, loop_x + 1):
+                attack_loop += 1
+                if mods.get():
+                    def process_files_in_directory(directory):
+                        for item in listdir(directory):
+                            item_path = path.join(directory, item)
+                            if path.isfile(item_path):
+                                exec(open(item_path, "r").read())
+                            elif path.isdir(item_path):
+                                process_files_in_directory(item_path)
 
-                process_files_in_directory(path.abspath("mods/skills/damage dealt check"))
+                    process_files_in_directory(path.abspath("mods/skills/damage dealt check"))
 
-            damage = round(damage)
-            if "ignores block" not in card["details"]:
-                stored = damage
-                damage -= player_data[target]["block"]
-                player_data[target]["block"] -= stored
-                if player_data[target]["block"] < 0:
-                    player_data[target]["block"] = 0
-            if damage < 0:
-                damage = 0
-            player_data[target]["health"] -= damage
+                damage = round(damage)
+                if "ignores block" not in card["details"]:
+                    stored = damage
+                    damage -= player_data[target_]["block"]
+                    player_data[target_]["block"] -= stored
+                    if player_data[target_]["block"] < 0:
+                        player_data[target_]["block"] = 0
+                if damage < 0:
+                    damage = 0
+                player_data[target_]["health"] -= damage
 
-            if "drain" in card["details"]:
-                heal = damage
-                if player_data[get_turn()]["health"] + heal > player_data[get_turn()]["max health"]:
-                    heal = player_data[get_turn()]["max health"] - player_data[get_turn()]["health"]
-                player_data[get_turn()]["health"] += heal
+                if "drain" in card["details"]:
+                    heal = damage
+                    if player_data[get_turn()]["health"] + heal > player_data[get_turn()]["max health"]:
+                        heal = player_data[get_turn()]["max health"] - player_data[get_turn()]["health"]
+                    player_data[get_turn()]["health"] += heal
 
-            if damage > 0 and "Thorns" in get_player_data(target, "effects"):
-                damage = get_effect_value(target, "Thorns")
-                stored = damage
-                damage -= player_data[get_turn()]["block"]
-                player_data[get_turn()]["block"] -= stored
-                if player_data[get_turn()]["block"] < 0:
-                    player_data[get_turn()]["block"] = 0
-                player_data[get_turn()]["health"] -= round(damage)
-                if player_data[get_turn()]["health"] < 0:
-                    player_data[get_turn()]["health"] = 0
+                if "Reflect" in get_player_data(target_, "effects") and damage > 0:
+                    damage2 = round(damage * get_effect_value(target_, "Reflect") / 10)
+                    stored = damage2
+                    damage2 -= player_data[get_turn()]["block"]
+                    player_data[get_turn()]["block"] -= stored
+                    if player_data[get_turn()]["block"] < 0:
+                        player_data[get_turn()]["block"] = 0
+                    player_data[get_turn()]["health"] -= damage2
+                    if player_data[get_turn()]["health"] < 0:
+                        player_data[get_turn()]["health"] = 0
+
+                if damage > 0 and "Thorns" in get_player_data(target_, "effects"):
+                    damage = get_effect_value(target_, "Thorns")
+                    stored = damage
+                    damage -= player_data[get_turn()]["block"]
+                    player_data[get_turn()]["block"] -= stored
+                    if player_data[get_turn()]["block"] < 0:
+                        player_data[get_turn()]["block"] = 0
+                    player_data[get_turn()]["health"] -= round(damage)
+                    if player_data[get_turn()]["health"] < 0:
+                        player_data[get_turn()]["health"] = 0
 
         if "block" in card and not (card["block"]["target"] == "self" and loop > 1):
             # block: {"amount": 3, "target": "self"}
@@ -1039,7 +1223,10 @@ def play_card(card_name, targets):
                 if duration not in player_data[target_]["effects"][status]:
                     player_data[target_]["effects"][status].update({duration: 0})
 
-                player_data[target_]["effects"][status][duration] += amount
+                player_data[target_]["effects"][status][duration] += amount + get_effect_value(get_turn(), "Strength")
+
+                if "energy" in card:
+                    player_data[get_turn()]["energy"] += card["energy"]() if callable(card["energy"]) else card["energy"]
 
             # "effects": {"Weak": [2, "opponent", permanent False, loop False]}
             for status in card["effects"]:
@@ -1053,6 +1240,18 @@ def play_card(card_name, targets):
                     player_data[target_]["effects"][status][0] += amount
                     player_data[target_]["effects"][status][1] = player_data[target_]["effects"][status][1] \
                         if not player_data[target_]["effects"][status][1] else card["effects"][status][2]
+
+    if "Arsonist" in player_data[get_turn()]["skills"]:
+        for p in get_turn("other"):
+            effect = "Burn" if get_player_data(get_turn(), "class upgrade") != 3 else "Poison"
+            duration = "normal" if get_player_data(get_turn(), "class upgrade") != 3 else "temporary"
+            if effect not in get_player_data(p, "effects"):
+                player_data[p]["effects"].update({effect: {}})
+
+            if duration not in player_data[p]["effects"][effect]:
+                player_data[p]["effects"][effect].update({duration: 0})
+
+            player_data[p]["effects"][effect][duration] += 1
 
     if "duplicate" in card["details"]:
         player_data[get_turn()]["discard"].append(card_name)
@@ -1099,19 +1298,17 @@ def choose_target(card, back=False, event=None):
                 counter = 0
             counter += 1
             if get_card_data(card, "target") == "1 opponent" and x in get_turn("other"):
-                style.configure("target.TButton", foreground=get_player_data(x, "colour"))
-                Button(frame, text=player_data[x]["name"], command=lambda: play_card(card, [x]),
-                       style="target.TButton").pack(side="left", padx=2)
-    for target in get_turn("all"):
-        if player_data[target]["health"] <= 0:
-            restart_program()
+                style.configure(f"{x}.target.TButton", foreground=get_player_data(x, "colour"))
+                Button(frame, text=player_data[x]["name"], command=lambda x=x: play_card(card, [x]),
+                       style=f"{x}.target.TButton").pack(side="left", padx=2)
 
 
 def ai_choice(loops=0, player=None):
     if player is None:
         player = get_turn()
     ai = get_player_data(get_turn(), "ai")
-    print(f"Loops: {loops}")
+    if dev_features.get():
+        print(f"Loops: {loops}")
     if ((get_player_data(get_turn(), "energy") == 0 and not
     any(get_card_data(card, "cost") == 0 for card in get_player_data(get_turn(), "hand"))) or
             loops == 20 or get_turn() != player or len(get_player_data(get_turn(), "hand")) == 0):  # Failsafe
@@ -1131,14 +1328,15 @@ def ai_choice(loops=0, player=None):
 
 def get_effect_value(target, effect):
     value = 0
-    if "normal" in player_data[target]["effects"][effect]:
-        value += player_data[target]["effects"][effect]["normal"]
+    if effect in player_data[target]["effects"]:
+        if "normal" in player_data[target]["effects"][effect]:
+            value += player_data[target]["effects"][effect]["normal"]
 
-    if "permanent" in player_data[target]["effects"][effect]:
-        value += player_data[target]["effects"][effect]["permanent"]
+        if "permanent" in player_data[target]["effects"][effect]:
+            value += player_data[target]["effects"][effect]["permanent"]
 
-    if "temporary" in player_data[target]["effects"][effect]:
-        value += player_data[target]["effects"][effect]["temporary"]
+        if "temporary" in player_data[target]["effects"][effect]:
+            value += player_data[target]["effects"][effect]["temporary"]
     return value
 
 
@@ -1150,7 +1348,8 @@ def get_full_value(card, key):
         value = og_value["amount"]
     else:
         value = og_value
-    print(value)
+    if dev_features.get():
+        print(value)
 
     if key == "damage":
         value *= 2 / 3 if "Weak" in player_data[get_turn()]["effects"] else 1
@@ -1168,11 +1367,11 @@ def get_full_value(card, key):
 def discard_hand():
     for card in get_player_data(get_turn(), "hand").copy():
         if "constant" not in get_card_data(card, "details"):
-            if "disintegrate" in get_card_data(card, "details"):
-                player_data[get_turn()]["exile"].append(card)
-            else:
+            if "disintegrate" not in get_card_data(card, "details"):
                 player_data[get_turn()]["discard"].append(card)
             player_data[get_turn()]["hand"].remove(card)
+
+
 auto = 0
 setup()
 
