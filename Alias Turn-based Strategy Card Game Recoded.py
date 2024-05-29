@@ -105,8 +105,9 @@ dictionary = {
             lambda: len([i for i in get_player_data(get_turn(), "effects") if
                          dictionary["effects"][i]["type"] == "negative"])}},
 
-        "mana damage": {"description": "Deal 3 damage.\nDeal damage more times equal to your mana / 10 (rounded down)", "damage": {"amount": 3, "times":
-            lambda: 1 + floor(get_player_data(get_turn(), "special")["mana"] / 10)}},
+        "mana damage": {"description": "Deal 3 damage.\nDeal damage more times equal to your mana / 10 (rounded down)",
+                        "damage": {"amount": 3, "times":
+                            lambda: 1 + (1 if player_data[get_turn()]["special"]["mana"] >= 10 else 0)}},
 
         # Class cards ^^^
         # Independent cards vvv
@@ -197,7 +198,8 @@ dictionary = {
                                              2: "You defult skill also gives you temporary Resistance.",
                                              3: "Double Strength gained from you default skill."},
                                 "deck": ["debuff damage"] * 4 + ["debuff block"] * 3 + ["debuff special"] * 1},
-        "PLACEHOLDER: Mana": {"skills": ["Mana burst"], "health": 60, "description": "Gain 1 mana at the end of each turn.",
+        "PLACEHOLDER: Mana": {"skills": ["Mana burst"], "health": 40,
+                              "description": "Gain 1 mana at the end of each turn.",
                               "upgrades": {1: "Gain 2 Mana at the start of each turn.",
                                            2: "Mana burst applies temporary Strength equal to your man instead of "
                                               "dealing damage.",
@@ -351,15 +353,21 @@ dictionary = {
         Added independent cards
         Added BTS effect classifications
         Added a difficulty slider
+        You can now add multiple copies of a card to your deck
+        Some small UI changes
         
         Added classes:
             PLACEHOLDER: Debuff
             PLACEHOLDER: Mana
+        Changed classes:
+            PLACEHOLDER: Mana (60 > 40 HP, Mana burst caps at 10)
         Added cards:
             example independent
             debuff damage
             debuff block
             debuff special
+            mana damage
+        Changed cards:
             mana damage
         """
     },
@@ -497,20 +505,17 @@ main.resizable(False, False)
 main.title("New Game")
 main.option_add("*Font", "calibri")
 
-style = Style()
-style.configure("TMenubutton", font=("calibri", 10))
-style.configure("version_menu.TMenubutton", font=("calibri", 7, "bold"))
-style.configure("TButton", font=("calibri", 10))
-style.configure("end_button.TButton", foreground="#cc0000", font=("calibri", 10, "bold"))
-style.configure("combat.TButton", foreground="#ff7800")
-style.configure("magic.TButton", foreground="#006fff")
-style.configure("special.TButton", foreground="#00b000")
-style.configure("grey.TButton", foreground="#3d3d3d")
-style.configure("target.TButton", font=("calibri", 9))
-style.configure("skill.TButton", foreground="#32a852", font=("calibri", 9))
-style.configure(f"combat.TCheckbutton", foreground="#ff7800")
-style.configure(f"magic.TCheckbutton", foreground="#006fff")
-style.configure(f"special.TCheckbutton", foreground="#00b000")
+Style().configure("TMenubutton", font=("calibri", 10))
+Style().configure("version_menu.TMenubutton", font=("calibri", 7, "bold"))
+Style().configure("TButton", font=("calibri", 10))
+Style().configure("end_button.TButton", foreground="#cc0000", font=("calibri", 10, "bold"))
+Style().configure("combat.TButton", foreground="#ff7800")
+Style().configure("magic.TButton", foreground="#006fff")
+Style().configure("special.TButton", foreground="#00b000")
+Style().configure("grey.TButton", foreground="#3d3d3d")
+Style().configure("target.TButton", font=("calibri", 9))
+Style().configure("skill.TButton", foreground="#32a852", font=("calibri", 9))
+Style().configure("COUNTER.TButton", width=2)
 
 latest_version = list(dictionary["patch notes"])[-1]
 dictionary["patch notes"][f"{latest_version} (Current)"] = dictionary["patch notes"].pop(latest_version)
@@ -694,12 +699,12 @@ def setup(stage=0, players_local=None, completed=[]):
                 colour = colorchooser.askcolor(title=f"Choose player {x}'s colour")
                 if colour[1]:
                     globals()[f"player_{x}_colour"].config(text=colour[1])
-                    style.configure("colour_picker.TButton", foreground=colour[1])
+                    Style().configure("colour_picker.TButton", foreground=colour[1])
 
             frame = Frame(center_frame)
             frame.pack(side="top", pady=5)
             Label(frame, text=f"What colour is player {x}?", font=("calibri", 10)).pack(side="left")
-            style.configure("colour_picker.TButton", foreground="#000000")
+            Style().configure("colour_picker.TButton", foreground="#000000")
             globals()[f"player_{x}_colour"] = Button(frame, text="#000000", command=choose_colour,
                                                      style="colour_picker.TButton", width=7)
             globals()[f"player_{x}_colour"].pack(side="left", padx=(5, 0))
@@ -802,34 +807,83 @@ def setup(stage=0, players_local=None, completed=[]):
                     bool_dict[x].update({area: {}})
                 personal_dict = dictionary[area]
                 width = max([len(dictionary[area][i]["display name"] if area == "cards" else i) for i in
-                             dictionary[area]]) * 9.4
+                             dictionary[area]]) * 9.4 + 30
                 scrollable_frame = create_scrollable_frame(modal, (width, 0), pack_over_place=True, bg_colour="#f6f6f6",
                                                            side="right", fill="y", padx=10)
                 scrollable_frame.configure(background="#f6f6f6")
 
-                def toggle_checks(a):
-                    global bool_dict
-                    sta = None
-                    for p in bool_dict[x][a]:
-                        if sta is None:
-                            sta = not bool_dict[x][a][p].get()
-                        bool_dict[x][a][p].set(sta)
+                if area == "skills":
+                    def toggle_checks():
+                        global bool_dict
+                        sta = None
+                        for p in bool_dict[x]["skills"]:
+                            if sta is None:
+                                sta = not bool_dict[x]["skills"][p].get()
+                            bool_dict[x]["skills"][p].set(sta)
 
-                Button(scrollable_frame, text="Toggle all on/off",
-                       command=lambda a=area: toggle_checks(a)).pack(side="top", anchor="w")
+                    Button(scrollable_frame, text="Toggle all on/off",
+                           command=toggle_checks).pack(side="top", anchor="w")
+
+                elif area == "cards":
+                    def toggle_checks():
+                        global bool_dict
+                        sta = None
+                        for p in bool_dict[x]["cards"]:
+                            if sta is None:
+                                sta = 1 if not int(bool_dict[x]["cards"][p].get()) else 0
+                            bool_dict[x]["cards"][p].set(sta)
+
+                    Button(scrollable_frame, text="Toggle all on/off",
+                           command=toggle_checks).pack(side="top", anchor="w")
 
                 for i in personal_dict:
-                    if f"enabled_{i}" not in bool_dict[x][area]:
-                        bool_dict[x][area].update({f"enabled_{i}": BooleanVar()})
-                        bool_dict[x][area][f"enabled_{i}"].set(False)
-                    for z in ["Custom", "combat", "magic", "special"]:
-                        style.configure(f"{z}.TCheckbutton", background=scrollable_frame.cget("background"))
-                    check = Checkbutton(scrollable_frame, text=f"{personal_dict[i]["display name"]
-                    if area == "cards" else i}", variable=bool_dict[x][area][f"enabled_{i}"],
-                                        style=f"{"Custom" if area == "skills" else dictionary[area][i]["type"]}.TCheckbutton")
-                    check.pack(side="top", anchor="w")
-                    CreateToolTip(check, f"{dictionary[area][i] if area == "skills" else
-                    dictionary[area][i]["description"]}", background="#ffffff")
+                    if area == "skills":
+                        if f"enabled_{i}" not in bool_dict[x][area]:
+                            bool_dict[x][area].update({f"enabled_{i}": BooleanVar()})
+                            bool_dict[x][area][f"enabled_{i}"].set(False)
+                        Style().configure("Custom.TCheckbutton", background=scrollable_frame.cget("background"))
+                        check = Checkbutton(scrollable_frame, text=i, variable=bool_dict[x][area][f"enabled_{i}"],
+                                            style=f"Custom.TCheckbutton")
+                        check.pack(side="top", anchor="w")
+                        CreateToolTip(check, dictionary[area][i], background="#ffffff")
+
+                    elif area == "cards":
+                        def change_counter(value, i, limits=(0, 99)):
+                            current = int(bool_dict[x][area][f"enabled_{i}"].get())
+                            new_value = current + value
+                            if new_value < limits[0]:
+                                new_value = limits[0]
+                            elif new_value > limits[1]:
+                                new_value = limits[1]
+                            bool_dict[x][area][f"enabled_{i}"].set(new_value)
+
+                        if f"enabled_{i}" not in bool_dict[x]["cards"]:
+                            bool_dict[x]["cards"].update({f"enabled_{i}": StringVar()})
+                            bool_dict[x]["cards"][f"enabled_{i}"].set("0")
+
+                        frame = Frame(scrollable_frame)
+                        frame.pack(side="top", anchor="w")
+                        if dictionary[area][i]["type"] == "combat":
+                            colour = "#ff7800"
+                        elif dictionary[area][i]["type"] == "magic":
+                            colour = "#006fff"
+                        else:
+                            colour = "#00b000"
+
+                        Label(frame, font=("calibri", 9), foreground=colour, text=i,
+                              background=scrollable_frame.cget("background")).pack(side="left")
+
+                        Entry(frame, width=3, justify="center",
+                              textvariable=bool_dict[x]["cards"][f"enabled_{i}"],
+                              state="readonly").pack(side="left")
+
+                        Button(frame, text="+", command=lambda i=i: change_counter(1, i),
+                               style="COUNTER.TButton").pack(
+                            side="left")
+
+                        Button(frame, text="-", command=lambda i=i: change_counter(-1, i),
+                               style="COUNTER.TButton").pack(
+                            side="left")
 
             main.wait_window(modal)
 
@@ -875,11 +929,11 @@ def start_game():
         if x in bool_dict:
             for area in ["skills", "cards"]:
                 for i in dictionary[area]:
-                    if area == "skills" and bool_dict[x][area][f"enabled_{i}"].get() and i not in player_data[x][
-                        "skills"]:
+                    if (area == "skills" and bool_dict[x][area][f"enabled_{i}"].get() and
+                            i not in player_data[x]["skills"]):
                         player_data[x]["skills"].append(i)
-                    elif area == "cards" and bool_dict[x][area][f"enabled_{i}"].get():
-                        player_data[x]["deck"].append(i)
+                    elif area == "cards":
+                        [player_data[x]["deck"].append(i) for n in range(int(bool_dict[x][area][f"enabled_{i}"].get()) + 1)]
 
         if "Spirit Call" in player_data[x]["skills"]:
             player_data[x]["special"].update({"spirit counter": 0 if not dev_features.get() else 10})
@@ -1123,8 +1177,9 @@ def end_turn(event=None):
         if get_player_data(get_turn(), "effects")[effect][0] <= 0:
             del player_data[get_turn()]["effects"][effect]
 
-    if "Mana burst" in get_player_data(get_turn(), "skills"):
-        player_data[get_turn()]["special"]["mana"] += 2 if get_player_data(get_turn(), "class upgrade") == 1 else 1
+    if "Mana burst" in get_player_data(get_turn(), "skills") and player_data[get_turn()]["special"]["mana"] != 10:
+        player_data[get_turn()]["special"]["mana"] += 2 if get_player_data(get_turn(), "class upgrade") == 1 and \
+                                                           player_data[get_turn()]["special"]["mana"] != 9 else 1
 
     if mods.get():
         def process_files_in_directory(directory):
@@ -1269,7 +1324,7 @@ def update_info():
 
         Button(frame, text="Spirit Call", style="skill.TButton",
                state="disabled" if get_player_data(get_turn(), "ai") else "normal",
-               command=spirit_call).pack(side="left")
+               command=spirit_call).pack(side="left", padx=5)
 
     if "Mana burst" in player_data[get_turn()]["skills"]:
         if get_player_data(get_turn(), "class upgrade") != 2:
@@ -1299,7 +1354,8 @@ def update_info():
 
         Button(frame, text="Mana burst", style="skill.TButton",
                command=mana_burst, state="disabled" if player_data[get_turn()]["special"]["mana"] == 0 or
-                                                       get_player_data(get_turn(), "ai") else "normal").pack(side="left")
+                                                       get_player_data(get_turn(), "ai") else "normal").pack(
+            side="left", padx=5)
 
     if not frame.winfo_children():
         frame.destroy()
@@ -1675,7 +1731,7 @@ def choose_target(card, back=False, event=None):
                 counter = 0
             counter += 1
             if get_card_data(card, "target") == "1 opponent" and x in get_turn("other"):
-                style.configure(f"{x}.target.TButton", foreground=get_player_data(x, "colour"))
+                Style().configure(f"{x}.target.TButton", foreground=get_player_data(x, "colour"))
                 Button(frame, text=player_data[x]["name"], command=lambda x=x: play_card(card, [x]),
                        style=f"{x}.target.TButton").pack(side="left", padx=2)
 
