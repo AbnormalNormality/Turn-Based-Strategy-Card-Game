@@ -1,4 +1,4 @@
-from tkinter import Tk, Frame, Label, StringVar, colorchooser, BooleanVar, messagebox, Toplevel
+from tkinter import Tk, Frame, Label, StringVar, colorchooser, BooleanVar, messagebox, Toplevel, Scale
 from tkinter.ttk import Button, Entry, OptionMenu, Style, Checkbutton
 from AliasTkFunctions.tkfunctions import fix_resolution_issue, CreateToolTip, create_scrollable_frame
 from AliasHelpfulFunctions.generalFunctions import minimize_python, restart_program, get_username, make_super_script, \
@@ -94,28 +94,56 @@ dictionary = {
                          "target": "self"},
         "poison special": {"description": "Deal damage to target equal to their Poison value",
                            "damage": lambda: get_effect_value(target, "Poison")},
+
+        "debuff damage": {"description": "Deal 4 damage\nApply 2 Frail to yourself.",
+                          "effects": {"Frail": {"amount": 2, "target": "self", "duration": "normal"}},
+                          "damage": 4},
+        "debuff block": {"description": "Gain 4 block\nApply 2 Weak to yourself.",
+                         "effects": {"Weak": {"amount": 2, "target": "self", "duration": "normal"}},
+                         "block": 4},
+        "debuff special": {"description": "Deal 2 damage for each debuff you have.", "damage": {"amount": 2, "times":
+            lambda: len([i for i in get_player_data(get_turn(), "effects") if
+                         dictionary["effects"][i]["type"] == "negative"])}},
+
+        "mana damage": {"description": "Deal 3 damage.\nDeal damage more times equal to your mana / 10 (rounded down)", "damage": {"amount": 3, "times":
+            lambda: 1 + floor(get_player_data(get_turn(), "special")["mana"] / 10)}},
+
+        # Class cards ^^^
+        # Independent cards vvv
+
+        "example independent": {"description": "hi :3"}
     },
     "effects": {
         "effect": {"description": "effect description", "type": "positive"},
-        "Weak": {"description": "Reduces damage you deal by 30%", "type": "negative"},
+        "Weak": {"description": "Reduces damage you deal by 30%", "type": "negative", "classification": "modifier"},
         "Poison": {"description": "Lose X health at the start of your turn",
-                   "type": "negative"},
-        "Burn": {"description": "Take X at the end of your turn", "type": "negative"},
-        "Frail": {"description": "Gain 30% less shield from cards", "type": "negative"},
-        "Vulnerable": {"description": "Take 30% more damage from cards", "type": "negative"},
-        "Exhaust": {"description": "Start each turn with 30% less energy", "type": "negative"},
-        "Strength": {"description": "Deal more X damage from cards", "type": "positive"},
-        "Resistance": {"description": "Gain X more shield from cards", "type": "positive"},
-        "Bleed": {"description": "Lose 1/16th of your HP whe playing a card", "type": "negative"},
+                   "type": "negative", "classification": "damage over time"},
+        "Burn": {"description": "Take X at the end of your turn", "type": "negative",
+                 "classification": "damage over time"},
+        "Frail": {"description": "Gain 30% less shield from cards", "type": "negative", "classification": "modifier"},
+        "Vulnerable": {"description": "Take 30% more damage from cards", "type": "negative",
+                       "classification": "modifier"},
+        "Exhaust": {"description": "Start each turn with 30% less energy", "type": "negative",
+                    "classification": "modifier"},
+        "Strength": {"description": "Deal more X damage from cards", "type": "positive", "classification": "modifier"},
+        "Resistance": {"description": "Gain X more shield from cards", "type": "positive",
+                       "classification": "modifier"},
+        "Bleed": {"description": "Lose 1/16th of your HP whe playing a card", "type": "negative",
+                  "classification": "damage over time"},
         "Thorns": {"description": "Opponents take X damage when dealing unblocked damage",
-                   "type": "positive"},
-        "Armoured": {"type": "positive", "description": "Don't lose shield at the end of your turn."},
-        "Regeneration": {"type": "positive", "description": "Heal X at the end of your turn."},
+                   "type": "positive", "classification": "damage over time"},
+        "Armoured": {"type": "positive", "description": "Don't lose shield at the end of your turn.",
+                     "classification": "other"},
+        "Regeneration": {"type": "positive", "description": "Heal X at the end of your turn.",
+                         "classification": "other"},
         "Reflect": {"type": "positive",
-                    "description": "Reflect X0% damage back at attackers after effects, skills, and block."},
-        "Conservation": {"type": "positive", "description": "Gain X energy at the start of your turn."},
-        "Fear": {"description": "Reduces damage you deal by 50%", "type": "negative"},
-        "Preperation": {"type": "positive", "description": "Draw X cards at the start of your turn."},
+                    "description": "Reflect X0% damage back at attackers after effects, skills, and block.",
+                    "classification": "damage over time"},
+        "Conservation": {"type": "positive", "description": "Gain X energy at the start of your turn.",
+                         "classification": "other"},
+        "Fear": {"description": "Reduces damage you deal by 50%", "type": "negative", "classification": "modifier"},
+        "Preperation": {"type": "positive", "description": "Draw X cards at the start of your turn.",
+                        "classification": "other"},
     },
     "classes": {
         "class": {"health": 50, "energy": 3, "skills": ["skill"],
@@ -157,20 +185,33 @@ dictionary = {
                                "basic effect",
                            ], "health": 60, "energy": 3},
         "Pyromaniac": {"description": "PLACEHOLDER", "skills": ["Arsonist"], "health": 55,
-                       "upgrades": {0: "Default class, no changes.",
-                                    1: "Burn pierces through shield.",
+                       "upgrades": {1: "Burn pierces through shield.",
                                     2: "Burn applied by your skill is affected by Strength.\nGain 1 Strength at the start of yout "
                                        "turn for each enemy with Burn.",
                                     3: "Apply 1 Poison every time you play a card insead of Burn.\nChange "
                                        "your starting deck to a Poison deck."},
                        "deck": ["burn damage", "burn damage", "burn damage", "burn damage", "burn block", "burn block",
-                                "burn block", "burn special"]}
+                                "burn block", "burn special"]},
+        "PLACEHOLDER: Debuff": {"skills": ["Defiance"], "health": 60, "description": "PLACEHOLDER",
+                                "upgrades": {1: "Apply 1 of a random debuff to yourself at the start of your turn.",
+                                             2: "You defult skill also gives you temporary Resistance.",
+                                             3: "Double Strength gained from you default skill."},
+                                "deck": ["debuff damage"] * 4 + ["debuff block"] * 3 + ["debuff special"] * 1},
+        "PLACEHOLDER: Mana": {"skills": ["Mana burst"], "health": 60, "description": "Gain 1 mana at the end of each turn.",
+                              "upgrades": {1: "Gain 2 Mana at the start of each turn.",
+                                           2: "Mana burst applies temporary Strength equal to your man instead of "
+                                              "dealing damage.",
+                                           3: "Start each turn with more energy equal to your Mana / 10 (rounded "
+                                              "down, max 3)"},
+                              "deck": ["mana damage"]},
     },
     "skills": {
         "skill": "skill description",
         "Beginner's luck": "Recieve 10% less damage from incoming attacks",
         "Spirit Call": "After you play 10 cards you can change your hand to special cards.",
         "Arsonist": "Apply 1 Burn to all enemies every time you play a card.",
+        "Defiance": "Gain 1 temporary Strength at the start of your turn equal to the amount of the debuffs you have applied.",
+        "Mana burst": "Deal damage equal to our mana.\nSet your mana to 0.",
     },
     "patch notes": {
         "Alpha 0": """
@@ -290,15 +331,38 @@ dictionary = {
             Spirit of Sanctuary
             Block
             Weak Magic
+            burn block
+            burn damage
+            burn special
+            poison block
+            poison damage
+            poison special
         Changed cards:
             Spirit of Veangence
             Weak Magic
         """,
         "Alpha 0.4": """
         You can now add extra cards to your deck at the start of the game
-        Fixed some bugs
+        Fixed a lot of bugs
+        You can now toggle all on or off in deck editor
+        Changed how restarting works
+        Added card rarity
+        Added card races
+        Added independent cards
+        Added BTS effect classifications
+        Added a difficulty slider
+        
+        Added classes:
+            PLACEHOLDER: Debuff
+            PLACEHOLDER: Mana
+        Added cards:
+            example independent
+            debuff damage
+            debuff block
+            debuff special
+            mana damage
         """
-    }
+    },
 }
 dictionary["cards"].update({
     "all card": {
@@ -330,8 +394,10 @@ def fix_dictionary():
             dictionary["cards"][card_name]["display name"] = card_name
         if "details_dict" not in card:
             dictionary["cards"][card_name]["details_dict"] = {}
-        if "class card" not in card:
-            dictionary["cards"][card_name]["class card"] = True
+        if "rarity" not in card:
+            dictionary["cards"][card_name]["rarity"] = "Common"
+        if "race" not in card:
+            dictionary["cards"][card_name]["race"] = "neutral"
 
         for i in ["block", "heal", "draw"]:
             if i in card and callable(card[i]):
@@ -378,10 +444,14 @@ def fix_dictionary():
         if "effects" not in class_:
             dictionary["classes"][class_name]["effects"] = {}
         if "upgrades" not in class_:
-            dictionary["classes"][class_name]["upgrades"] = {0: "",
-                                                             1: "",
-                                                             2: "",
-                                                             3: ""}
+            dictionary["classes"][class_name]["upgrades"] = {1: "Not implemented",
+                                                             2: "Not implemented",
+                                                             3: "Not implemented"}
+
+    for effect_name in dictionary["effects"]:
+        effect = dictionary["effects"][effect_name]
+        if "classification" not in effect:
+            dictionary["effects"][effect_name]["classification"] = "other"
 
 
 fix_dictionary()
@@ -438,6 +508,9 @@ style.configure("special.TButton", foreground="#00b000")
 style.configure("grey.TButton", foreground="#3d3d3d")
 style.configure("target.TButton", font=("calibri", 9))
 style.configure("skill.TButton", foreground="#32a852", font=("calibri", 9))
+style.configure(f"combat.TCheckbutton", foreground="#ff7800")
+style.configure(f"magic.TCheckbutton", foreground="#006fff")
+style.configure(f"special.TCheckbutton", foreground="#00b000")
 
 latest_version = list(dictionary["patch notes"])[-1]
 dictionary["patch notes"][f"{latest_version} (Current)"] = dictionary["patch notes"].pop(latest_version)
@@ -513,6 +586,9 @@ def setup(stage=0, players_local=None, completed=[]):
         mods.set(False)
         Checkbutton(frame, variable=mods).pack(side="left")
 
+        frame = Frame(center_frame)
+        frame.pack(side="top", pady=5)
+
         edit_deck = BooleanVar()
         edit_deck.set(True)
 
@@ -542,7 +618,7 @@ def setup(stage=0, players_local=None, completed=[]):
 
         Button(frame, text="More", command=more_options).pack(side="left", padx=(0, 10))
         Button(frame, text="Next", command=lambda: setup(1, players_local=player_entry.get())).pack(side="top",
-                                                                                                           pady=5)
+                                                                                                    pady=5)
         if auto >= 1:
             setup(1, players_local=player_entry.get())
 
@@ -566,16 +642,11 @@ def setup(stage=0, players_local=None, completed=[]):
                 [process_files_in_directory(path.abspath(f"mods/{i}"), i) for i in
                  ["effects", "cards", "skills", "classes"]]
                 print("Finished loading mods!")
-            dictionary["classes"]["all"] = {"health": 99, "energy": 3, "description": "Start with 99 health, every "
-                                                                                      "skill, and 5 of every effect.",
-                                            "skills": list(dictionary["skills"]), "deck": list(dictionary["cards"]),
-                                            "effects": {effect: {"normal": 3} for effect in dictionary["effects"]}}
-
-            fix_dictionary()
 
             for object_ in list(dictionary):
                 for card in list(dictionary[object_]):
-                    if card in ["combat", "magic card", "class", "skill", "effect", "all", "all card"]:
+                    if card in ["combat", "magic card", "class", "skill", "effect", "all", "all card",
+                                "example independent"]:
                         if type(dictionary[object_][card]) is not str:
                             dictionary[object_][card]["description"] = (f"{dictionary[object_][card]["description"]}"
                                                                         f" (This item is intended for developer use only)")
@@ -584,6 +655,13 @@ def setup(stage=0, players_local=None, completed=[]):
                                 card] = f"{dictionary[object_][card]}\nThis item is intended for developer use only."
                         if not dev_features.get():
                             del dictionary[object_][card]
+
+            dictionary["classes"]["all"] = {"health": 99, "energy": 3, "description": "Start with 99 health, every "
+                                                                                      "skill, and 5 of every effect.",
+                                            "skills": list(dictionary["skills"]), "deck": list(dictionary["cards"]),
+                                            "effects": {effect: {"normal": 3} for effect in dictionary["effects"]}}
+
+            fix_dictionary()
 
         for x in range(players):
             if x in completed:
@@ -639,6 +717,10 @@ def setup(stage=0, players_local=None, completed=[]):
                 update_class_upgrades()
 
             def update_class_upgrades(*args):
+                if globals()[f"player_{x}_class_upgrade"].get() == "0":
+                    CreateToolTip(option_menu2, "Default skill", y_change=33, x_change=1, background="#ffffff",
+                                  font=("calibri", 9))
+                    return
                 class_ = globals()[f"player_{x}_class"].get()
                 upgrade = globals()[f"player_{x}_class_upgrade"].get()
                 CreateToolTip(option_menu2,
@@ -661,19 +743,55 @@ def setup(stage=0, players_local=None, completed=[]):
             option_menu2.pack(side="left")
             globals()[f"player_{x}_class_upgrade"].trace("w", update_class_upgrades)
             update_class()
+
+            frame = Frame(center_frame)
+            frame.pack(side="top", pady=5)
+
+            Label(frame, text=f"Select a difficulty for player {x}", font=("calibri", 10)).pack(side="left")
+
+            def update_scale(value):
+                value = int(value)
+                if value == -2:  # Easiest
+                    label.configure(text="Easiest")
+                    tooltip = "Take 20% less damage from attacks.\nDeal 20% more damage"
+                    globals()[f"difficulty_{x}"] = [0.8, 1.2]
+                elif value == -1:
+                    label.configure(text="Easy")
+                    tooltip = "Take 10% less damage from attacks.\nDeal 10% more damage"
+                    globals()[f"difficulty_{x}"] = [0.9, 1.1]
+                elif value == 0:  # No changes
+                    label.configure(text="Normal")
+                    tooltip = "Normal difficulty, no changes"
+                    globals()[f"difficulty_{x}"] = [1, 1]
+                elif value == 1:
+                    label.configure(text="Hard")
+                    tooltip = "Take 10% more damage from attacks.\nDeal 10% less damage"
+                    globals()[f"difficulty_{x}"] = [1.1, 0.9]
+                elif value == 2:  # Hardest
+                    label.configure(text="Hardest")
+                    tooltip = "Take 20% more damage from attacks.\nDeal 20% less damage"
+                    globals()[f"difficulty_{x}"] = [1.2, 0.8]
+                else:
+                    return
+                CreateToolTip(label, tooltip,
+                              y_change=33, x_change=1, background="#ffffff", font=("calibri", 9))
+
+            frame = Frame(frame)
+            frame.pack(side="left", pady=5)
+
+            label = Label(frame, text="help")
+            label.pack(side="top")
+            Scale(frame, from_=-2, to=2, orient="horizontal", command=update_scale, showvalue=False).pack(side="top")
+            update_scale(0)
+
             break
 
         def more_options():
             global bool_dict
-
-            def on_close():
-                modal.destroy()
-
             modal = Toplevel()
             modal.grab_set()
             main_window_size_and_center(3.5, 3.5, modal)
             modal.title("More options")
-            modal.protocol("WM_DELETE_WINDOW", on_close)
 
             Button(modal, text="Close", command=modal.destroy).pack(side="bottom", pady=10)
 
@@ -689,16 +807,29 @@ def setup(stage=0, players_local=None, completed=[]):
                                                            side="right", fill="y", padx=10)
                 scrollable_frame.configure(background="#f6f6f6")
 
+                def toggle_checks(a):
+                    global bool_dict
+                    sta = None
+                    for p in bool_dict[x][a]:
+                        if sta is None:
+                            sta = not bool_dict[x][a][p].get()
+                        bool_dict[x][a][p].set(sta)
+
+                Button(scrollable_frame, text="Toggle all on/off",
+                       command=lambda a=area: toggle_checks(a)).pack(side="top", anchor="w")
+
                 for i in personal_dict:
                     if f"enabled_{i}" not in bool_dict[x][area]:
                         bool_dict[x][area].update({f"enabled_{i}": BooleanVar()})
                         bool_dict[x][area][f"enabled_{i}"].set(False)
-                    style.configure("Custom.TCheckbutton", background=scrollable_frame.cget("background"))
+                    for z in ["Custom", "combat", "magic", "special"]:
+                        style.configure(f"{z}.TCheckbutton", background=scrollable_frame.cget("background"))
                     check = Checkbutton(scrollable_frame, text=f"{personal_dict[i]["display name"]
-                                        if area == "cards" else i}", variable=bool_dict[x][area][f"enabled_{i}"], style="Custom.TCheckbutton")
+                    if area == "cards" else i}", variable=bool_dict[x][area][f"enabled_{i}"],
+                                        style=f"{"Custom" if area == "skills" else dictionary[area][i]["type"]}.TCheckbutton")
                     check.pack(side="top", anchor="w")
                     CreateToolTip(check, f"{dictionary[area][i] if area == "skills" else
-                                  dictionary[area][i]["description"]}", background="#ffffff")
+                    dictionary[area][i]["description"]}", background="#ffffff")
 
             main.wait_window(modal)
 
@@ -734,7 +865,8 @@ def start_game():
             "hand": [], "discard": [], "exile": [], "special": {},
             "ai": choice(["random"]) if globals()[f"player_{x}_ai"].get() else False,
             "colour": globals()[f"player_{x}_colour"].cget("text"), "block": 0, "played cards": [],
-            "played cards this turn": [], "class upgrade": int(globals()[f"player_{x}_class_upgrade"].get())
+            "played cards this turn": [], "class upgrade": int(globals()[f"player_{x}_class_upgrade"].get()),
+            "difficulty": globals()[f"difficulty_{x}"],
         }})
         if player_data[x]["class"] == "Pyromaniac" and player_data[x]["class upgrade"] == 3:
             for i in range(len(player_data[x]["deck"]) + 1):
@@ -743,13 +875,18 @@ def start_game():
         if x in bool_dict:
             for area in ["skills", "cards"]:
                 for i in dictionary[area]:
-                    if area == "skills" and bool_dict[x][area][f"enabled_{i}"].get() and i not in player_data[x]["skills"]:
+                    if area == "skills" and bool_dict[x][area][f"enabled_{i}"].get() and i not in player_data[x][
+                        "skills"]:
                         player_data[x]["skills"].append(i)
                     elif area == "cards" and bool_dict[x][area][f"enabled_{i}"].get():
                         player_data[x]["deck"].append(i)
 
         if "Spirit Call" in player_data[x]["skills"]:
             player_data[x]["special"].update({"spirit counter": 0 if not dev_features.get() else 10})
+
+        if "Mana burst" in player_data[x]["skills"]:
+            player_data[x]["special"].update({"mana": 0 if not dev_features.get() else 10})
+
         shuffle(player_data[x]["deck"])
     turn = {
         "turn": 0, "all": list(player_data)}
@@ -763,8 +900,21 @@ def start_game():
     end_button = Button(main, text="End Turn", command=end_turn, style="end_button.TButton")
     end_button.place(x=main.winfo_width() - 150, y=main.winfo_height() - 110)
     main.bind("<KeyRelease-Return>", lambda event: end_turn(event=event))
-    (Button(main, text="Restart Game", command=restart_program, style="end_button.TButton")
-     .place(x=main.winfo_width() - 150, y=main.winfo_height() - 55))
+
+    def check_restart():
+        inp = messagebox.askyesnocancel("Surrender?",
+                                        "What do you want to do?\nPress 'Yes' to restart\nPress 'No' to surrender")
+        if inp is True:
+            restart_program()
+        elif inp is False:
+            player_data[get_turn()]["health"] = 0
+            end_turn()
+        else:
+            pass
+
+    Button(main, text="Surrender", command=check_restart,
+           style="end_button.TButton").place(x=main.winfo_width() - 150,
+                                             y=main.winfo_height() - 55)
 
     card_frame = Frame(main)
     card_frame.pack(side="bottom", pady=20)
@@ -834,6 +984,11 @@ def start_turn():
     update_info()
     turn_label.configure(text=f"Turn {turn["turn"]}")
     player_data[get_turn()]["energy"] = player_data[get_turn()]["turn energy"]
+
+    if "Mana burst" in get_player_data(get_turn(), "skills") and get_player_data(get_turn(), "class upgrade") == 3:
+        e = floor(player_data[get_turn()]["special"]["mana"] / 10)
+        player_data[get_turn()]["energy"] += e if e <= 3 else 3
+
     if "Exhaust" in player_data[get_turn()]["effects"]:
         player_data[get_turn()]["energy"] = round(player_data[get_turn()]["energy"] * 2 / 3)
     if "Conservation" in player_data[get_turn()]["effects"]:
@@ -878,6 +1033,29 @@ def start_turn():
                 player_data[get_turn()]["effects"]["Strength"].update({"temporary": 0})
 
             player_data[get_turn()]["effects"]["Strength"]["temporary"] += c + 1
+
+    if "Defiance" in get_player_data(get_turn(), "skills"):
+        if get_player_data(get_turn(), "class upgrade") == 1 and len(
+                [i for i in dictionary["effects"] if dictionary["effects"][i]["type"] == "negative"]) > 0:
+            effect = choice([i for i in dictionary["effects"] if dictionary["effects"][i]["type"] == "negative"])
+            if effect not in get_player_data(get_turn(), "effects"):
+                player_data[get_turn()]["effects"].update({effect: {}})
+            if "normal" not in player_data[get_turn()]["effects"][effect]:
+                player_data[get_turn()]["effects"][effect].update({"normal": 0})
+            player_data[get_turn()]["effects"][effect]["normal"] += 2
+
+        amount = len(
+            [i for i in get_player_data(get_turn(), "effects") if dictionary["effects"][i]["type"] == "negative"]) * (
+                     2 if get_player_data(get_turn(), "class upgrade") == 3 else 1)
+
+        for effect in ["Strength", "Resistance"]:
+            if effect == "Resistance" and get_player_data(get_turn(), "class upgrade") != 2 or amount == 0:
+                continue
+            if effect not in get_player_data(get_turn(), "effects"):
+                player_data[get_turn()]["effects"].update({effect: {}})
+            if "temporary" not in player_data[get_turn()]["effects"][effect]:
+                player_data[get_turn()]["effects"][effect].update({"temporary": 0})
+            player_data[get_turn()]["effects"][effect]["temporary"] += amount
 
     if mods.get():
         def process_files_in_directory(directory):
@@ -944,6 +1122,9 @@ def end_turn(event=None):
                                                           player_data[get_turn()]["effects"][effect][1]]
         if get_player_data(get_turn(), "effects")[effect][0] <= 0:
             del player_data[get_turn()]["effects"][effect]
+
+    if "Mana burst" in get_player_data(get_turn(), "skills"):
+        player_data[get_turn()]["special"]["mana"] += 2 if get_player_data(get_turn(), "class upgrade") == 1 else 1
 
     if mods.get():
         def process_files_in_directory(directory):
@@ -1036,7 +1217,7 @@ def update_info():
     tooltip = f"{get_class_data(class_, "description")}"
     for skill in get_class_data(class_, "skills"):
         tooltip = tooltip + f"\n{skill}: {dictionary["skills"][skill]}"
-    tooltip = tooltip + f"{f"\nUpgrade {get_player_data(get_turn(), "class upgrade")}: {get_class_data(class_, "upgrades")[get_player_data(get_turn(), "class upgrade")]}" if get_player_data(get_turn(), "class upgrade") and get_class_data(class_, "upgrades")[get_player_data(get_turn(), "class upgrade")] else ""}\nDeck:\n • {"\n • ".join(sorted(get_class_data(class_, "deck")))}"
+    tooltip = tooltip + f"{"" if get_player_data(get_turn(), "class upgrade") == 0 else f"\nUpgrade {get_player_data(get_turn(), "class upgrade")}: {get_class_data(class_, "upgrades")[get_player_data(get_turn(), "class upgrade")]}"}\nDeck:\n • {"\n • ".join(sorted(get_class_data(class_, "deck")))}"
     CreateToolTip(label, tooltip, y_change=35, background="#ffffff", font=("calibri", 9))
 
     counter = 5
@@ -1049,6 +1230,8 @@ def update_info():
             counter += 1
             if skill == "Spirit Call":
                 c = get_player_data(get_turn(), "special")["spirit counter"]
+            elif skill == "Mana burst":
+                c = get_player_data(get_turn(), "special")["mana"]
             else:
                 c = ""
             label = Label(frame, text=f"{skill}{" " if c != "" else ""}{c}", foreground="#4b7dc9", font=("calibri", 10))
@@ -1077,13 +1260,46 @@ def update_info():
 
     if "Spirit Call" in player_data[get_turn()]["skills"] and player_data[get_turn()]["special"][
         "spirit counter"] == 10:
+        def spirit_call():
+            discard_hand()
+            player_data[get_turn()]["hand"] += ["SPECIAL DAMAGE", "SPECIAL BLOCK", "SPECIAL EFFECT", "SPECIAL KING"]
+            player_data[get_turn()]["special"]["spirit counter"] = 0
+            player_data[get_turn()]["energy"] = player_data[get_turn()]["turn energy"]
+            update_info()
+
         Button(frame, text="Spirit Call", style="skill.TButton",
                state="disabled" if get_player_data(get_turn(), "ai") else "normal",
-               command=lambda: exec("""discard_hand()
-player_data[get_turn()]["hand"] += ["SPECIAL DAMAGE", "SPECIAL BLOCK", "SPECIAL EFFECT", "SPECIAL KING"]
-player_data[get_turn()]["special"]["spirit counter"] = 0
-player_data[get_turn()]["energy"] = player_data[get_turn()]["turn energy"]
-update_info()""")).pack(side="left")
+               command=spirit_call).pack(side="left")
+
+    if "Mana burst" in player_data[get_turn()]["skills"]:
+        if get_player_data(get_turn(), "class upgrade") != 2:
+            def mana_burst():
+                for target in get_turn("other"):
+                    damage = get_player_data(get_turn(), "special")["mana"]
+                    stored = damage
+                    damage -= player_data[target]["block"]
+                    player_data[target]["block"] -= stored
+                    if player_data[target]["block"] < 0:
+                        player_data[target]["block"] = 0
+                    if damage < 0:
+                        damage = 0
+                    player_data[target]["health"] -= damage
+                player_data[get_turn()]["special"]["mana"] = 0
+                update_info()
+        else:
+            def mana_burst():
+                if "Strength" not in get_player_data(get_turn(), "effects"):
+                    player_data[get_turn()]["effects"].update({"Strength": {}})
+                if "temporary" not in player_data[get_turn()]["effects"]["Strength"]:
+                    player_data[get_turn()]["effects"]["Strength"].update({"temporary": 0})
+                player_data[get_turn()]["effects"]["Strength"]["temporary"] += get_player_data(get_turn(), "special")[
+                    "mana"]
+                player_data[get_turn()]["special"]["mana"] = 0
+                update_info()
+
+        Button(frame, text="Mana burst", style="skill.TButton",
+               command=mana_burst, state="disabled" if player_data[get_turn()]["special"]["mana"] == 0 or
+                                                       get_player_data(get_turn(), "ai") else "normal").pack(side="left")
 
     if not frame.winfo_children():
         frame.destroy()
@@ -1093,6 +1309,8 @@ update_info()""")).pack(side="left")
     frame2 = Frame(enemy_info)
     frame2.pack(side="top")
     for enemy in get_turn("other"):
+        if get_player_data(enemy, "health") <= 0:
+            continue
         if counter == 4:
             frame2 = Frame(enemy_info)
             frame2.pack(side="top")
@@ -1111,8 +1329,9 @@ update_info()""")).pack(side="left")
         tooltip = f"{get_class_data(class_, "description")}"
         for skill in get_class_data(class_, "skills"):
             tooltip = tooltip + f"\n{skill}: {dictionary["skills"][skill]}"
-        tooltip = tooltip + f"{f"\nUpgrade {get_player_data(enemy, "class upgrade")}: {get_class_data(class_, "upgrades")[get_player_data(enemy, "class upgrade")]}" if get_player_data(enemy, "class upgrade") and get_class_data(class_, "upgrades")[get_player_data(get_turn(), "class upgrade")] else ""}\nDeck:\n • {"\n • ".join(sorted(get_class_data(class_, "deck")))}"
-        CreateToolTip(label, tooltip, y_change=35, background="#ffffff", font=("calibri", 9))
+        tooltip = tooltip + f"{"" if get_player_data(enemy, "class upgrade") == 0 else f"\nUpgrade {get_player_data(enemy, "class upgrade")}: {get_class_data(class_, "upgrades")[get_player_data(enemy, "class upgrade")]}"}\nDeck:\n • {"\n • ".join(sorted(get_class_data(class_, "deck")))}"
+        CreateToolTip(label, f"{get_player_data(enemy, "name")}\n{tooltip}", y_change=35, background="#ffffff",
+                      font=("calibri", 9))
 
         counter2 = 3
         if get_player_data(enemy, "skills"):
@@ -1124,8 +1343,12 @@ update_info()""")).pack(side="left")
                     frame3.pack(side="top")
                     counter2 = 0
                 counter2 += 1
-                c = get_player_data(enemy, "special")["spirit counter"] if skill == "Spirit Call" else \
-                    ""
+                if skill == "Spirit Call":
+                    c = get_player_data(enemy, "special")["spirit counter"]
+                elif skill == "Mana burst":
+                    c = get_player_data(enemy, "special")["mana"]
+                else:
+                    c = ""
                 label = Label(frame3, text=f"{skill}{" " if c != "" else ""}{c}", foreground="#4b7dc9",
                               font=("calibri", 8))
                 label.pack(side="left", padx=3)
@@ -1151,10 +1374,6 @@ update_info()""")).pack(side="left")
                               .replace("X", f"{get_effect_value(enemy, effect)}"),
                               background="#ffffff", font=("calibri", 9), x_change=0, y_change=22)
 
-    for i in ["all", "other"]:
-        for p in turn[i]:
-            if get_player_data(p, "health") <= 0:
-                turn[i].remove(p)
     alive_count = 0
     alive_player = None
     for target in get_turn("all"):
@@ -1163,7 +1382,8 @@ update_info()""")).pack(side="left")
             alive_player = get_player_data(target, "name")
     if alive_count < 2:
         if messagebox.askyesno(title=f"{alive_player if alive_player else get_turn()} wins!",
-                               message=f"{alive_player if alive_player else get_turn()} wins!\nPlay again?"):
+                               message=f"{alive_player if alive_player else
+                               get_turn()} wins!\nPlay again?"):
             restart_program()
         else:
             exit()
@@ -1205,6 +1425,8 @@ def play_card(card_name, targets):
     if not type(targets) is list:
         targets = [targets]
     for target in targets:
+        if get_player_data(target, "health") <= 0:
+            continue
         loop += 1
 
         if "effects" in card:
@@ -1217,7 +1439,7 @@ def play_card(card_name, targets):
                     "target"] == "opponent") or (card["effects"][status]["target"] == "self" and loop > 1):
                     continue
                 amount = card["effects"][status]["amount"]() if callable(card["effects"][status]["amount"]) else \
-                card["effects"][status]["amount"]
+                    card["effects"][status]["amount"]
                 target_ = get_turn() if card["effects"][status]["target"] == "self" else target
                 duration = card["effects"][status]["duration"]
 
@@ -1254,15 +1476,19 @@ def play_card(card_name, targets):
             damage = card["damage"]["amount"]() if callable(card["damage"]["amount"]) else card["damage"]["amount"]
             target_ = get_turn() if card["damage"]["target"] == "self" else target
 
+            # Addition & subtraction
+            damage += get_effect_value(get_turn(), "Strength") if "Strength" in player_data[get_turn()][
+                "effects"] else 0
+
+            # Multiplication
             damage *= 2 / 3 if "Weak" in player_data[get_turn()]["effects"] else 1
             damage *= 0.9 if "Beginner's luck" in player_data[target_]["skills"] else 1
             damage *= 4 / 3 if "Vulnerable" in player_data[target_]["effects"] else 1
             if "increase damage if effect" in card["details_dict"] and \
                     card["details_dict"]["increase damage if effect"]["effect"] in get_player_data(target_, "effects"):
                 damage *= card["details_dict"]["increase damage if effect"]["amount"]
-
-            damage += get_effect_value(get_turn(), "Strength") if "Strength" in player_data[get_turn()][
-                "effects"] else 0
+            damage *= get_player_data(target, "difficulty")[0]
+            damage *= get_player_data(get_turn(), "difficulty")[1]
 
             loop_x = card["damage"]["times"]() if callable(card["damage"]["times"]) else card["damage"]["times"]
             attack_loop = 0
@@ -1361,7 +1587,7 @@ def play_card(card_name, targets):
                             "target"] == "opponent")) or (card["effects"][status]["target"] == "self" and loop > 1):
                     continue
                 amount = card["effects"][status]["amount"]() if callable(card["effects"][status]["amount"]) else \
-                card["effects"][status]["amount"]
+                    card["effects"][status]["amount"]
                 target_ = get_turn() if card["effects"][status]["target"] == "self" else target
                 duration = card["effects"][status]["duration"]
 
@@ -1425,7 +1651,8 @@ def choose_target(card, back=False, event=None):
     if back:
         return
     elif get_card_data(card, "target") == "all opponents" or (get_card_data(card, "target") == "1 opponent" and
-                                                              len(get_turn("other")) == 1):
+                                                              len([i for i in get_turn("other") if
+                                                                   get_player_data(i, "health") <= 0]) <= 2):
         play_card(card, get_turn("other"))
     elif get_card_data(card, "target") == "all players":
         play_card(card, get_turn("all"))
