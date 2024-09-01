@@ -16,48 +16,12 @@ fix_resolution_issue()
 main = Tk()
 
 
-class SkillTriggers:
+class Triggers:
+    SkillButton = -99
+
     GameStart = 0
     TurnStart = 1
     TurnEnd = 2
-
-    DrawCard = 3
-    PlayCard = 4
-    DiscardCard = 5
-    ExileCard = 6
-    RemoveCard = 7
-
-    DamageDealt = 8
-    DamageTaken = 9
-
-    BlockGained = 10
-    BlockBroken = 11
-
-    EffectGained = 12
-    EffectInflicted = 13
-
-    DiscardCleared = 14
-
-    SkillButton = 15
-
-    HealthGained = 16
-    HealthLost = 17
-
-    DamageCalc = 18
-    BlockCalc = 19
-
-
-class CardTriggers:
-    Drawn = 0
-    Played = 1
-    Discarded = 2
-    Exiled = 3
-    Removed = 4
-
-
-class EffectTriggers:
-    TurnStart = 0
-    TurnEnd = 1
 
     DrawCard = 3
     PlayCard = 4
@@ -81,80 +45,111 @@ class EffectTriggers:
 
     DamageCalc = 17
     BlockCalc = 18
+    EffectCalc = 19
+
+    Drawn = '0'
+    Played = '1'
+    Discarded = '2'
+    Exiled = '3'
+    Removed = '4'
 
 
-dictionary = {
-    "cards": {
-        "Card": {
-            "description": "Card description\nDeal 3 damage",
-            "cost": 1,
-            "target": "opponent",
-            "damage": 3,
-            "type": "combat"
+def reset_dictionary():
+    return {
+        "cards": {
+            "Card": {
+                "description": "Card description\nDeal 3 damage",
+                "cost": 1,
+                "target": "opponent",
+                "damage": 3,
+                "type": "combat"
+            },
+            "Card 2": {
+                "description": "Card 2 description\nGain 5 block\nInflict 1 Effect",
+                "cost": 1,
+                "target": "opponent",
+                "block": 5,
+                "effects": (
+                    (1, "Effect", "target")
+                ),
+                "type": "magic"
+            },
+            "Card 3": {
+                "description": "Can't touch this!",
+                "cost": 0,
+                "type": "Special",
+                "unplayable": True,
+                Triggers.Drawn: lambda: print("Card 3: I HAVE BEEN DRAWN!!!"),
+                Triggers.Discarded: lambda: print("Card 3: I HAVE BEEN DISCARDED!!!")
+            }
+
         },
-        "Card 2": {
-            "description": "Card 2 description\nGain 5 block\nInflict 1 Effect",
-            "cost": 1,
-            "target": "opponent",
-            "block": 5,
-            "effects": (
-                (1, "Effect", "target")
-            ),
-            "type": "magic"
-        }
-    },
 
-    "classes": {
-        "Class": {
-            "description": "Class description",
-            "cards": [
-                "Card",
-                "Card",
-                "Card",
-                "Card 2",
-                "Card 2",
-                "Card 2"
-            ],
-            "skills": ["Skill"],
-            "hp": 50,
-            "energy": 3,
-            "hand_size": 5,
-            "colour": "#000000"
-        }
-    },
+        "classes": {
+            "Class": {
+                "description": "Class description",
+                "cards": [
+                    "Card",
+                    "Card",
+                    "Card 2",
+                    "Card 2",
+                    "Card 3",
+                    "Card 3",
+                ],
+                "skills": ["Skill"],
+                "hp": 50,
+                "energy": 3,
+                "hand_size": 5,
+                "colour": "#000000"
+            }
+        },
 
-    "skills": {
-        "Skill": {
-            "description": "Skill description",
-            "trigger_name": "Activate skill",
-            SkillTriggers.SkillButton: lambda: print("SkillButton"),
-            "type": "positive",
-            "colour": "#000000"
-        }
-    },
+        "skills": {
+            "Skill": {
+                "description": "Skill description",
+                "trigger_name": "Activate skill",
+                Triggers.SkillButton: lambda: print("SkillButton"),
+                "colour": "#000000"
+            }
+        },
 
-    "effects": {
-        "Effect": {
-            "description": "Effect description",
-            EffectTriggers.TurnStart:  lambda: print("Effect triggered"),
-            "colour": "#000000"
+        "effects": {
+            # Positive: #4b7dc9
+            # Negative: #de4765
+
+            "Effect": {
+                "description": "Effect description",
+                Triggers.TurnStart: lambda: print("Effect triggered"),
+                "colour": "#4b7dc9",
+                "type": "positive",
+                Triggers.BlockCalc: lambda b: exec("b[0] += 100", {"b": b}),
+            }
         }
     }
-}
+
+
+dictionary = reset_dictionary()
 
 players = {}
 
-non_player = {
-    "players": IntVar(value=2),
-    "version": ("0.1", "Alpha"),
-    "splashes": (
-        "Alia's turn-based strategy card-game recoded\nRECODED AGAIN",
-        "Now with less hardcoding!",
-    ),
-    "player": 0,
-    "opponents": [],
-    "max_hand_size": 8
-}
+
+def reset_non_player():
+    return {
+        "players": IntVar(value=2),
+        "version": ("0.2.1", "Alpha"),
+        "splashes": (
+            "Alia's turn-based strategy card-game recoded\nRECODED AGAIN",
+            "Now with less hardcoding!",
+        ),
+        "player": 0,
+        "opponents": [],
+        "max_hand_size": 8,
+        "turn": 0,
+        "mods_enabled": BooleanVar(value=False)
+    }
+
+
+non_player = reset_non_player()
 
 # noinspection SpellCheckingInspection
 main.bind("<Configure>", lambda event: update_bg(main))
@@ -173,8 +168,6 @@ Style().configure("combat.TButton", foreground="#ff7800")
 Style().configure("magic.TButton", foreground="#006fff")
 Style().configure("special.TButton", foreground="#00b000")
 
-mods_enabled = BooleanVar(value=False)
-
 
 # noinspection PyPep8Naming
 def QFrame(window, **kwargs):
@@ -183,8 +176,9 @@ def QFrame(window, **kwargs):
     return f
 
 
+# noinspection SpellCheckingInspection
 def setup(stage=0, finished=None):
-    global dictionary
+    global dictionary, non_player
 
     if finished is None:
         finished = []
@@ -192,6 +186,9 @@ def setup(stage=0, finished=None):
     [w.destroy() for w in main.winfo_children()]
 
     if stage == 0:
+        dictionary = reset_dictionary()
+        non_player = reset_non_player()
+
         main.configure(background="#f8bfff")
 
         resize_window(main, 4, 4, False)
@@ -213,13 +210,13 @@ def setup(stage=0, finished=None):
         Spinbox(frame, from_=2, to=4, width=3, state="readonly",
                 textvariable=non_player["players"]).pack(side="left")
 
-        Checkbutton(frame, variable=mods_enabled, text="Enable mods").pack(padx=(20, 0))
+        Checkbutton(frame, variable=non_player["mods_enabled"], text="Enable mods").pack(padx=(20, 0))
 
         if auto >= 1:
             setup(1)
 
     elif stage == 1:
-        if mods_enabled.get() and not finished:
+        if non_player["mods_enabled"].get() and not finished:
             for mod in glob(join("*.json")):
 
                 def merge_dicts(source, updates):
@@ -344,6 +341,8 @@ def cycle_turn():
 
     non_player["opponents"] = [player for player in player_list if player != non_player["player"]]
 
+    non_player["turn"] += 1
+
 
 def get_class(c, k):
     return dictionary["classes"][c][k]
@@ -356,11 +355,11 @@ def get_player(p=None, k=None):
 
 
 def game():
-    global card_frame, effect_frame, ui, target_frame, enemies_frame
+    global card_frame, effect_frame, ui, target_frame, enemies_frame, deck_view, discard_view, exile_view
 
     # main.configure(background="#ffd6fa")
 
-    button = Label(text="End turn", foreground="#cc0000", font="TkDefaultFont 8 bold")
+    button = Label(main, text="End turn", foreground="#cc0000", font="TkDefaultFont 8 bold", width=10)
     button.pack(side="bottom", pady=(0, 10))
     button.bind("<Button-1>", lambda _: end_turn())
     main.bind("<KeyRelease-e>", lambda _: end_turn())
@@ -379,27 +378,43 @@ def game():
     target_frame = Frame()
     target_frame.place(relx=0.5, rely=0.5, anchor="center")
 
+    #
+
+    frame = Frame()
+    frame.place(relx=0.95, rely=0.5, anchor="center")
+
+    deck_view = Label(frame, text="Deck", justify="right")
+    deck_view.pack(side="top")
+
+    discard_view = Label(frame, text="Discard", justify="right")
+    discard_view.pack(side="top")
+
+    exile_view = Label(frame, text="Exile", justify="right")
+    exile_view.pack(side="top")
+
+    #
+
     for _ in players:
         cycle_turn()
 
         players[get_turn()]["hp"] = get_player(k="max_hp")
         players[get_turn()]["energy"] = get_player(k="max_energy")
 
-        check_skills(SkillTriggers.GameStart)
+        check_skills(Triggers.GameStart)
 
     start_turn()
 
 
-def check_skills(trigger, p=None):
+def check_skills(trigger, p=None, **kwargs):
     if p is None:
         p = get_turn()
 
     for s in players[p]["skills"]:
-
         s = dictionary["skills"][s]
-        if trigger in s:
 
-            trigger = True
+        if trigger in s:
+            """
+            t = True
             event = None
 
             for i in s:
@@ -408,13 +423,15 @@ def check_skills(trigger, p=None):
                     break
 
                 if type(i() if callable(i) else i) is bool:
-                    trigger = i() if callable(i) else i
+                    t = i() if callable(i) else i
 
                 elif callable(i):
                     event = i
 
-            if trigger and event is not None:
+            if t and event is not None:
                 event()
+            """
+            s[trigger](**kwargs)
 
 
 def draw_hand(amount=None):
@@ -434,6 +451,8 @@ def draw_hand(amount=None):
         players[get_turn()]["deck"].remove(c)
         players[get_turn()]["hand"].append(c)
 
+        check_cards(c, Triggers.Drawn)
+
 
 def get_turn(current=True):
     return non_player["player"] if current else non_player["opponents"]
@@ -443,11 +462,13 @@ def start_turn():
     players[get_turn()]["energy"] = get_player(k="max_energy")
 
     draw_hand()
-    check_skills(SkillTriggers.TurnStart)
-    check_effects(EffectTriggers.TurnStart)
+
+    trigger_check(Triggers.TurnStart)
 
     for n in get_player(k="effects").copy():
         e = get_player(k="effects")[n]
+        if dictionary["effects"][n]["type"] == "positive":
+            continue
 
         if "temporary" in e:
             del players[get_turn()]["effects"][n]["temporary"]
@@ -464,10 +485,28 @@ def start_turn():
 
 
 def end_turn():
-    players[get_turn()]["discard"] += get_player(k="hand")
-    players[get_turn()]["hand"].clear()
+    for c in players[get_turn()]["hand"].copy():
+        players[get_turn()]["discard"].append(c)
+        check_cards(c, Triggers.Discarded)
+        players[get_turn()]["hand"].remove(c)
 
-    check_skills(SkillTriggers.TurnEnd)
+    trigger_check(Triggers.TurnEnd)
+
+    for n in get_player(k="effects").copy():
+        e = get_player(k="effects")[n]
+        if dictionary["effects"][n]["type"] == "negative":
+            continue
+
+        if "temporary" in e:
+            del players[get_turn()]["effects"][n]["temporary"]
+
+        if "normal" in e:
+            players[get_turn()]["effects"][n]["normal"] -= 1
+            if players[get_turn()]["effects"][n]["normal"] <= 0:
+                del players[get_turn()]["effects"][n]["normal"]
+
+        if get_effect_total(n) <= 0:
+            del players[get_turn()]["effects"][n]
 
     cycle_turn()
     start_turn()
@@ -493,10 +532,13 @@ def update_ui():
         if not i % 4:
             frame = QFrame(card_frame, side="top", pady=(10, 0))
 
-        button = Button(frame, text=f"{c} {superscript(get_card(c, "cost"))}", command=lambda index_=i:
-                        play_card(index_), state="disabled" if
-                        get_player(k="energy") < get_card(c, "cost") else "normal",
+        button = Button(frame, text=f"{c}{f" {superscript(get_card(c, "cost"))}" if "unplayable" not in 
+                                                                                    dictionary["cards"][c] else ""}",
+                        command=lambda index_=i: play_card(index_), state="disabled" if get_player(k="energy") <
+                                                                          get_card(c, "cost") or "unplayable" in
+                                                                          dictionary["cards"][c] else "normal",
                         style=f"{get_card(c, "type")}.TButton")
+
         button.pack(side="left", padx=(0 if i == 0 or not i % 4 else 10, 0))
         create_tooltip(button, get_card(c, "description"), wait_time=100, x_offset=1, y_offset=35)
 
@@ -512,7 +554,7 @@ def update_ui():
     trigger = False
 
     for s in get_player(k="skills"):
-        if SkillTriggers.SkillButton in dictionary["skills"][s]:
+        if Triggers.SkillButton in dictionary["skills"][s]:
             if not trigger:
                 frame = QFrame(effect_frame)
 
@@ -522,8 +564,8 @@ def update_ui():
             event = None
 
             for i in s:
-                if type(s[SkillTriggers.SkillButton]) is not tuple:
-                    event = s[SkillTriggers.SkillButton]
+                if type(s[Triggers.SkillButton]) is not tuple:
+                    event = s[Triggers.SkillButton]
                     break
 
                 if type(i() if callable(i) else i) is bool:
@@ -558,6 +600,10 @@ def update_ui():
             label.pack(side="left", padx=(0 if i == 0 else 5, 0))
             create_tooltip(label, dictionary["skills"][e]["description"], wait_time=100, x_offset=1, y_offset=35)
 
+    for i in ["deck", "discard", "exile"]:
+        if len(get_player(k=i)) > 0:
+            create_tooltip(globals()[f"{i}_view"], "\n".join(get_player(k=i)), wait_time=50, x_offset=24, y_offset=35)
+
     [w.destroy() for w in enemies_frame.winfo_children()]
 
     for i, p in enumerate(non_player["opponents"]):
@@ -586,8 +632,8 @@ def update_ui():
                 create_tooltip(label, dictionary["skills"][e]["description"], wait_time=100, x_offset=1, y_offset=35)
 
 
-def play_card(i, t=None):
-    n, c = get_player(k="hand")[i], dictionary["cards"][get_player(k="hand")[i]]
+def play_card(i, t=None, home="hand"):
+    n, c = get_player(k=home)[i], dictionary["cards"][get_player(k=home)[i]]
     if c["target"] == "all_opponents":
         t = non_player["opponents"]
 
@@ -608,7 +654,6 @@ def play_card(i, t=None):
         return
 
     players[get_turn()]["energy"] -= get_card(n, "cost")
-    players[get_turn()]["discard"].append(players[get_turn()]["hand"].pop(i))
 
     for p in t:
         target_types = {
@@ -641,8 +686,10 @@ def play_card(i, t=None):
             if all(i is not None for i in [effect, amount, duration, target]):
                 add_effect(target, effect, amount, duration)
 
-    check_skills(SkillTriggers.PlayCard)
-    check_effects(EffectTriggers.PlayCard)
+    trigger_check(Triggers.PlayCard)
+
+    players[get_turn()]["discard"].append(players[get_turn()]["hand"].pop(i))
+    check_cards(n, Triggers.Discarded)
 
     update_ui()
 
@@ -666,59 +713,63 @@ def get_effect_total(e, p=None, types=("normal", "temporary", "permanent")):
 
 
 def add_effect(t, e, a, d):
-    check_skills(SkillTriggers.EffectInflicted)
-    check_effects(EffectTriggers.EffectInflicted)
+    e, a, d = [e], [a], [d]
 
-    if e not in get_player(t, "effects"):
-        players[t]["effects"].update({e: {}})
+    trigger_check(Triggers.EffectCalc, e=e, a=a, d=d)
 
-    if d not in get_player(t, "effects")[e]:
-        players[t]["effects"][e].update({d: 0})
+    if e[0] not in get_player(t, "effects"):
+        players[t]["effects"].update({e[0]: {}})
 
-    players[t]["effects"][e][d] += a
+    if d[0] not in get_player(t, "effects")[e[0]]:
+        players[t]["effects"][e[0]].update({d[0]: 0})
 
-    check_skills(SkillTriggers.EffectGained, t)
-    check_effects(EffectTriggers.EffectGained, t)
+    players[t]["effects"][e[0]][d[0]] += a[0]
+
+    trigger_check(Triggers.EffectInflicted)
+
+    trigger_check(Triggers.EffectGained, t)
 
 
 def attack(t, d, ignore_block=False):
-    damage = d
+    d = [d]
 
     if not ignore_block:
-        damage -= get_player(t, "block")
+        d[0] -= get_player(t, "block")
 
-    check_skills(SkillTriggers.DamageDealt)
-    check_effects(EffectTriggers.DamageDealt)
+    trigger_check(Triggers.DamageCalc, d=d)
 
-    if damage > 0:
-        players[t]["hp"] -= damage
+    if d[0] > 0:
+        players[t]["hp"] -= d[0]
 
-        check_skills(SkillTriggers.BlockBroken, t)
-        check_effects(EffectTriggers.BlockBroken, t)
+        trigger_check(Triggers.DamageDealt)
 
-        check_skills(SkillTriggers.DamageTaken, t)
-        check_effects(EffectTriggers.DamageTaken, t)
+        trigger_check(Triggers.BlockBroken, t)
 
-        check_skills(SkillTriggers.HealthLost, t)
-        check_effects(EffectTriggers.HealthLost, t)
+        trigger_check(Triggers.DamageTaken, t)
+
+        trigger_check(Triggers.HealthLost, t)
 
 
 def gain_block(t, b):
-    check_skills(SkillTriggers.BlockGained)
-    check_effects(EffectTriggers.BlockGained)
+    b = [b]
 
-    players[t]["block"] += b
+    trigger_check(Triggers.BlockCalc, b=b)
+
+    players[t]["block"] += b[0]
+
+    trigger_check(Triggers.BlockGained)
 
 
-def check_effects(trigger, p=None):
+def check_effects(trigger, p=None, **kwargs):
     if p is None:
         p = get_turn()
 
     for e in players[p]["effects"]:
         e = dictionary["effects"][e]
-        if trigger in e:
 
-            trigger = True
+        if trigger in e:
+            """
+            t = True
             event = None
 
             for i in e:
@@ -727,13 +778,46 @@ def check_effects(trigger, p=None):
                     break
 
                 if type(i() if callable(i) else i) is bool:
-                    trigger = i() if callable(i) else i
+                    t = i() if callable(i) else i
 
                 elif callable(i):
                     event = i
 
-            if trigger and event is not None:
+            if t and event is not None:
                 event()
+            """
+            e[trigger](**kwargs)
+
+
+def trigger_check(trigger, t=None, **kwargs):
+    check_skills(trigger, t, **kwargs)
+    check_effects(trigger, t, **kwargs)
+
+
+def check_cards(c, trigger, **kwargs):
+    c = dictionary["cards"][c]
+
+    if trigger in c:
+        """
+        t = True
+        event = None
+
+        if type(c) is not tuple:
+            event = c[trigger]
+
+        else:
+            for i in c:
+
+                if type(i() if callable(i) else i) is bool:
+                    t = i() if callable(i) else i
+
+                elif callable(i):
+                    event = i
+
+        if t and event is not None:
+            event()
+        """
+        c[trigger](**kwargs)
 
 
 main.mainloop()
